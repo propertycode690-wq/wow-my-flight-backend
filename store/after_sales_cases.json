@@ -1,0 +1,56 @@
+[
+  {
+    "id": "AS-7481",
+    "pnr": "PNR20625",
+    "bookingId": "BK-7481",
+    "customerName": "abcd k",
+    "category": "Changes",
+    "subType": "Date Change",
+    "route": "JFK → DXB",
+    "airline": "Emirates Airways",
+    "owner": "Omar Farouq (Ticketing)",
+    "status": "In Progress",
+    "priority": "High",
+    "sla": "24h remaining",
+    "isSlaUrgent": false,
+    "createdAt": "15/10/2026, 10:47:18 pm",
+    "feeAmount": "$316.00",
+    "history": [
+      {
+        "id": "h-init-02662827-55fc-4581-af12-2eef58426f3f",
+        "timestamp": "15/10/2026, 10:47:18 pm",
+        "author": "Live CRM & GDS Queue",
+        "action": "Booking Synchronized into After-Sales Desk",
+        "notes": "Real booking BK-7481 with PNR PNR20625 active in queue."
+      },
+      {
+        "id": "h-1792087648329",
+        "timestamp": "15/10/2026, 11:37:28 pm",
+        "author": "Current Agent",
+        "action": "Agent Note Added",
+        "notes": "Customer called to change flight date to Nov 15"
+      },
+      {
+        "id": "h-1792087861446",
+        "timestamp": "15/10/2026, 11:41:01 pm",
+        "author": "Current Agent",
+        "action": "Agent Note Added",
+        "notes": "Waiver code approved by airline desk - ticket date changed."
+      },
+      {
+        "id": "h-own-1792088119743",
+        "timestamp": "15/10/2026, 11:45:19 pm",
+        "author": "Current Agent",
+        "action": "Owner Reassigned",
+        "notes": "Case owner updated from \"Omar Farouq\" to \"Omar Farouq (Ticketing)\""
+      },
+      {
+        "id": "h-stat-1792088142177",
+        "timestamp": "15/10/2026, 11:45:42 pm",
+        "author": "Current Agent",
+        "action": "Status Changed to In Progress",
+        "notes": "Case status transitioned from \"Open\" to \"In Progress\""
+      }
+    ]
+  }
+]

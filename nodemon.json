@@ -1,0 +1,12 @@
+{
+  "watch": [
+    "index.js",
+    "routes",
+    "db.js"
+  ],
+  "ignore": [
+    "store/*",
+    "node_modules/*",
+    "*.json"
+  ]
+}

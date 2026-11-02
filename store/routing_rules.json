@@ -1,0 +1,56 @@
+[
+  {
+    "id": 1,
+    "name": "USA Destination Rule",
+    "priority": 1,
+    "type": "Skill-Based",
+    "condition": "Destination == USA / Canada",
+    "action": "Assign to USA Sales Team",
+    "enabled": true
+  },
+  {
+    "id": 2,
+    "name": "Multi-City Expert Rule",
+    "priority": 2,
+    "type": "Skill-Based",
+    "condition": "Trip Type == Multi-City",
+    "action": "Assign to Flight Expert Desk",
+    "enabled": true
+  },
+  {
+    "id": 3,
+    "name": "VIP Lead Priority Rule",
+    "priority": 3,
+    "type": "VIP Priority",
+    "condition": "Score > 90 OR Priority == VIP",
+    "action": "Assign to Senior Agent / Expert TL",
+    "enabled": true
+  },
+  {
+    "id": 4,
+    "name": "Workload Balancing",
+    "priority": 4,
+    "type": "Capacity-Based",
+    "condition": "Agent Active Leads >= 30",
+    "action": "Reroute to Next Available Agent",
+    "enabled": true
+  },
+  {
+    "id": 5,
+    "name": "Default Round Robin",
+    "priority": 5,
+    "type": "Round Robin",
+    "condition": "Fallback Default",
+    "action": "Sequential Agent Rotation (A ➔ B ➔ C)",
+    "enabled": true
+  },
+  {
+    "id": 6,
+    "name": "High-Value VIP Flight Rule",
+    "priority": 1,
+    "type": "VIP Priority",
+    "condition": "Budget > 10000",
+    "action": "Assign to Super Admin Desk",
+    "enabled": true
+  }
+]

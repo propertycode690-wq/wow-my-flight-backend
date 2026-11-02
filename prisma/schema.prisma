@@ -1,0 +1,384 @@
+// Prisma schema for WowMyFlight CRM PostgreSQL Database
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. Users (Agents, Admins, Super Admins)
+// ─────────────────────────────────────────────────────────────────────────────
+model User {
+  id             String            @id @default(uuid())
+  name           String
+  email          String            @unique
+  passwordHash   String?
+  role           String            @default("consultant")
+  phone          String?
+  avatar         String?
+  status         String            @default("active")
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  
+  assignedLeads  Lead[]            @relation("AgentLeads")
+  callLogs       CallLog[]         @relation("AgentCallLogs")
+  dispositions   CallDisposition[] @relation("AgentDispositions")
+  chatSessions   ChatSession[]     @relation("AgentChatSessions")
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. Leads (Customer Flight Inquiries & Pipeline)
+// ─────────────────────────────────────────────────────────────────────────────
+model Lead {
+  id                String       @id @default(uuid())
+  firstName         String
+  lastName          String?
+  email             String?
+  phone             String?
+  country           String?
+  city              String?
+  timezone          String?
+  nationality       String?
+  preferredLanguage String?      @default("English")
+  serviceId         String?      @default("economy")
+  cabinClass        String?      @default("Economy")
+  status            String       @default("New Lead")
+  origin            String?
+  destination       String?
+  travelDate        String?
+  returnDate        String?
+  flexibility       String?      @default("Exact Dates")
+  adults            Int?         @default(1)
+  children          Int?         @default(0)
+  infants           Int?         @default(0)
+  passengers        Int?         @default(1)
+  budget            Float?
+  budgetRange       String?
+  source            String?      @default("Website Direct")
+  priority          String?      @default("Medium")
+  labels            String[]     @default([])
+  notes             String?
+  assignedAgentId   String?
+  assignedAgent     User?        @relation("AgentLeads", fields: [assignedAgentId], references: [id])
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@map("leads")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. Clients (Confirmed / Booked Travelers)
+// ─────────────────────────────────────────────────────────────────────────────
+model Client {
+  id                  String       @id @default(uuid())
+  firstName           String
+  lastName            String?
+  email               String?
+  phone               String?
+  country             String?
+  city                String?
+  timezone            String?
+  nationality         String?
+  passportNumber      String?
+  passportExpiry      String?
+  preferredCabinClass String?
+  seatPreference      String?
+  mealPreference      String?
+  preferredLanguage   String?
+  tier                String?      @default("Standard")
+  totalSpent          Float?       @default(0)
+  status              String       @default("Active")
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@map("clients")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. Call Logs (Real Telnyx Call Sessions)
+// ─────────────────────────────────────────────────────────────────────────────
+model CallLog {
+  id              String            @id @default(uuid())
+  callControlId   String?           @unique
+  direction       String            @default("outbound")
+  fromNumber      String
+  toNumber        String
+  agentId         String?
+  agentName       String?
+  agent           User?             @relation("AgentCallLogs", fields: [agentId], references: [id])
+  status          String            @default("initiated")
+  startedAt       DateTime          @default(now())
+  answeredAt      DateTime?
+  endedAt         DateTime?
+  durationSeconds Int               @default(0)
+  recordingUrl    String?
+  disposition     String?
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  dispositions    CallDisposition[]
+
+  @@map("call_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. Call Dispositions (Call Outcomes)
+// ─────────────────────────────────────────────────────────────────────────────
+model CallDisposition {
+  id              String       @id @default(uuid())
+  callId          String
+  callControlId   String?
+  callLog         CallLog?     @relation(fields: [callId], references: [id], onDelete: Cascade)
+  agentId         String?
+  agent           User?        @relation("AgentDispositions", fields: [agentId], references: [id])
+  disposition     String
+  notes           String?
+  createdAt       DateTime     @default(now())
+
+  @@map("call_dispositions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. SMS Logs (Incoming & Outgoing SMS)
+// ─────────────────────────────────────────────────────────────────────────────
+model SMSLog {
+  id               String       @id @default(uuid())
+  telnyxMessageId  String?      @unique
+  direction        String       @default("outbound")
+  fromNumber       String
+  toNumber         String
+  text             String
+  status           String       @default("sent")
+  agentId          String?
+  createdAt        DateTime     @default(now())
+
+  @@map("sms_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. Live Web Chat Sessions & Messages
+// ─────────────────────────────────────────────────────────────────────────────
+model ChatSession {
+  id              String        @id @default(uuid())
+  customerName    String        @default("Guest")
+  customerEmail   String?
+  customerPhone   String?
+  status          String        @default("active")
+  agentId         String?
+  agent           User?         @relation("AgentChatSessions", fields: [agentId], references: [id])
+  lastActivityAt  DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+
+  messages        ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id              String        @id @default(uuid())
+  sessionId       String
+  session         ChatSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  senderType      String        @default("customer")
+  senderId        String?
+  senderName      String?
+  text            String
+  type            String?       @default("text")
+  attachment      String?
+  createdAt       DateTime      @default(now())
+
+  @@map("chat_messages")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. Omnichannel Communication Timeline
+// ─────────────────────────────────────────────────────────────────────────────
+model Communication {
+  id              String        @id @default(uuid())
+  channel         String
+  direction       String?       @default("outbound")
+  customer        String?
+  customerPhone   String?
+  customerEmail   String?
+  from            String?
+  to              String?
+  subject         String?
+  message         String?
+  agent           String?
+  status          String?       @default("Completed")
+  timestamp       DateTime      @default(now())
+  durationSeconds Int?          @default(0)
+  callControlId   String?
+  createdAt       DateTime      @default(now())
+
+  @@map("communications")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. Bookings & Ticketing Queue (Travelopro GDS & CRM Issuance)
+// ─────────────────────────────────────────────────────────────────────────────
+model Booking {
+  id             String    @id @default(uuid())
+  bookingId      String    @unique
+  pnr            String
+  supplier       String    @default("Travelopro GDS")
+  ticketNumber   String?
+  passenger      String
+  name           String?
+  route          String
+  origin         String?
+  destination    String?
+  fare           String    @default("$0.00")
+  taxes          String    @default("$0.00")
+  commission     String    @default("$0.00")
+  amount         String    @default("$0.00")
+  paymentStatus  String    @default("Payment Confirmed")
+  ticketStatus   String    @default("Ready to Issue")
+  timeLimit      String?   @default("24h remaining")
+  ttl            String?   @default("24h remaining")
+  isTtlUrgent    Boolean   @default(false)
+  issuingAgent   String?   @default("Unassigned")
+  issueDateTime  String?
+  date           String?
+  cabinClass     String?   @default("Economy")
+  passengers     Int?      @default(1)
+  airlineCode    String?
+  flightNumber   String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("bookings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. Flight Quotes & Proposals
+// ─────────────────────────────────────────────────────────────────────────────
+model Quote {
+  id             String    @id @default(uuid())
+  quoteId        String    @unique
+  leadId         String?
+  customerName   String
+  customerEmail  String?
+  customerPhone  String?
+  status         String    @default("Draft")
+  origin         String?
+  destination    String?
+  tripType       String?   @default("Round Trip")
+  cabinClass     String?   @default("Economy")
+  passengers     Int?      @default(1)
+  departureDate  String?
+  returnDate     String?
+  airline        String?
+  flightNumber   String?
+  totalPrice     Float     @default(0.0)
+  netPrice       Float     @default(0.0)
+  markup         Float     @default(0.0)
+  serviceFee     Float     @default(0.0)
+  currency       String    @default("USD")
+  validUntil     String?
+  options        Json?
+  notes          String?
+  agentId        String?
+  agentName      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("quotes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. Payments & Invoices
+// ─────────────────────────────────────────────────────────────────────────────
+model Payment {
+  id             String    @id @default(uuid())
+  invoiceNumber  String    @unique
+  clientId       String?
+  customerName   String
+  customerEmail  String?
+  customerPhone  String?
+  amount         Float     @default(0.0)
+  currency       String    @default("USD")
+  status         String    @default("Pending")
+  method         String?   @default("Stripe")
+  serviceName    String?
+  dueDate        String?
+  paidAt         DateTime?
+  paymentLink    String?
+  transactionId  String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("payments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. Consultations & Calendar Appointments
+// ─────────────────────────────────────────────────────────────────────────────
+model Consultation {
+  id             String    @id @default(uuid())
+  clientName     String
+  clientEmail    String?
+  clientPhone    String?
+  agentId        String?
+  agentName      String?
+  serviceType    String?   @default("Flight Consultation")
+  dateTime       String
+  status         String    @default("Scheduled")
+  meetingLink    String?
+  notes          String?
+  outcome        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("consultations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 13. Customer Documents & Verification
+// ─────────────────────────────────────────────────────────────────────────────
+model Document {
+  id             String    @id @default(uuid())
+  clientId       String?
+  customerName   String
+  fileName       String
+  fileType       String?
+  fileSize       String?
+  fileUrl        String?
+  category       String    @default("Passport")
+  status         String    @default("Pending")
+  comment        String?
+  uploadedAt     DateTime  @default(now())
+  reviewedAt     DateTime?
+  reviewedBy     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("documents")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 14. Notifications & Alerts
+// ─────────────────────────────────────────────────────────────────────────────
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String   @default("system")
+  time      String?
+  read      Boolean  @default(false)
+  link      String?
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notifications")
+}
+
