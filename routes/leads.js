@@ -24,6 +24,9 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const leadStore = require('../store/leadStore');
 const { prisma, isDbConnected } = require('../db');
+const { recordAccess, scopedIo } = require('../middleware/recordAccess');
+router.use(recordAccess("lead", "assignedAgentId", [], ["distribution","duplicates","lifecycle"]));
+
 
 // Persistent metadata file for extended CRM fields (city, returnDate, source, priority, labels, etc.)
 const METADATA_FILE = path.join(__dirname, '../store/leads_metadata.json');
@@ -112,7 +115,7 @@ router.get('/', async (req, res) => {
     const { status, search, env = 'PRODUCTION' } = req.query;
     const assignedAgentId = req.user?.role === 'sales_executive' ? req.user.id : req.query.assignedAgentId;
 
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         const where = {};
         if (status && status !== 'all' && status !== 'All') {
@@ -150,8 +153,6 @@ router.get('/', async (req, res) => {
         }
 
         const combinedMap = new Map();
-        memoryLeads.forEach((l) => combinedMap.set(l.id, l));
-        storeLeads.forEach((l) => combinedMap.set(l.id, l));
         dbLeads.forEach((l) => combinedMap.set(l.id, l));
 
         const formattedList = Array.from(combinedMap.values()).map(formatLead);
@@ -161,9 +162,7 @@ router.get('/', async (req, res) => {
           count: formattedList.length,
           data: formattedList
         });
-      } catch (dbErr) {
-        console.warn('⚠️ [Leads API] DB query failed, falling back to memory:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     // Fallback to memory store
@@ -182,22 +181,7 @@ router.get('/', async (req, res) => {
       count: formattedFallback.length,
       data: formattedFallback
     });
-  } catch (err) {
-    console.error('❌ [Leads API] Error fetching leads:', err.message);
-    let fallbackData = memoryLeads;
-    if (leadStore && typeof leadStore.getLeads === 'function') {
-      const storeResult = leadStore.getLeads({ isSandbox: req.query.env === 'SANDBOX' });
-      fallbackData = storeResult.data || [];
-    }
-    const formattedFallback = fallbackData.map(formatLead);
-    return res.json({
-      success: true,
-      source: 'fallback',
-      count: formattedFallback.length,
-      data: formattedFallback,
-      warning: err.message
-    });
-  }
+  } catch (err) { return res.status(503).json({ success: false, error: 'Database query failed. Please retry.' }); }
 });
 
 // Persistent stores for Distribution, Duplicates & Lifecycle
@@ -224,26 +208,9 @@ function writeJsonFile(file, data) {
   }
 }
 
-async function getAllLeadsList() {
-  let list = [];
-  if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
-    try {
-      const dbLeads = await prisma.lead.findMany({
-        include: { assignedAgent: { select: { id: true, name: true, email: true } } }
-      });
-      if (dbLeads && dbLeads.length > 0) list = dbLeads;
-    } catch (e) { }
+async function getAllLeadsList(req) {
+    return prisma.lead.findMany({where: req?.user?.role === 'sales_executive' ? { assignedAgentId: req.user.id } : {}, include: {assignedAgent: {select: {id:true,name:true,email:true}}}});
   }
-  if (list.length === 0) {
-    if (leadStore && typeof leadStore.getLeads === 'function') {
-      const st = leadStore.getLeads({});
-      list = st.data || [];
-    } else {
-      list = memoryLeads;
-    }
-  }
-  return list.map(formatLead);
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LEAD DISTRIBUTION ENDPOINTS
@@ -251,7 +218,7 @@ async function getAllLeadsList() {
 router.get('/distribution/workload', async (req, res) => {
   try {
     let agents = [];
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         const dbUsers = await prisma.user.findMany({
           select: { id: true, name: true, email: true, role: true }
@@ -274,7 +241,7 @@ router.get('/distribution/workload', async (req, res) => {
       ];
     }
 
-    const allLeads = await getAllLeadsList();
+    const allLeads = await getAllLeadsList(req);
 
     const workloadData = agents.map((ag) => {
       const assigned = allLeads.filter(l => l.assignedAgentId === ag.id || l.assignedAgent?.name === ag.name || l.assignedAgent?.id === ag.id);
@@ -330,7 +297,7 @@ router.get('/distribution/workload', async (req, res) => {
 
     return res.json({ success: true, data: workloadData, stats });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -383,7 +350,7 @@ router.post('/distribution/reassign', async (req, res) => {
     }
 
     let targetUser = null;
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         targetUser = await prisma.user.findFirst({
           where: {
@@ -399,7 +366,7 @@ router.post('/distribution/reassign', async (req, res) => {
     const finalAgentName = targetUser ? targetUser.name : (req.body.targetAgentName || targetAgent);
 
     let prevAgentName = req.body.prevAgent || 'Unassigned';
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         const currentLead = await prisma.lead.findUnique({
           where: { id: leadId },
@@ -412,9 +379,7 @@ router.post('/distribution/reassign', async (req, res) => {
           where: { id: leadId },
           data: { assignedAgentId: finalAgentId }
         });
-      } catch (e) {
-        console.warn('⚠️ [Reassign] DB update fallback:', e.message);
-      }
+      } catch (e) { throw e; }
     }
 
     const history = readJsonFile(DIST_HISTORY_FILE, []);
@@ -431,14 +396,14 @@ router.post('/distribution/reassign', async (req, res) => {
     history.unshift(newLog);
     writeJsonFile(DIST_HISTORY_FILE, history);
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('lead:assigned', { leadId, agent: finalAgentName, log: newLog });
     }
 
     return res.json({ success: true, message: `Lead ${leadId} reassigned successfully`, log: newLog });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -452,7 +417,7 @@ router.get('/distribution/history', (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/duplicates/detect', async (req, res) => {
   try {
-    const leads = await getAllLeadsList();
+    const leads = await getAllLeadsList(req);
     const dismissed = new Set(readJsonFile(DISMISSED_DUPLICATES_FILE, []));
     const duplicates = [];
 
@@ -515,7 +480,7 @@ router.get('/duplicates/detect', async (req, res) => {
 
     return res.json({ success: true, count: duplicates.length, data: duplicates, stats });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -529,7 +494,7 @@ router.post('/duplicates/merge', async (req, res) => {
     }
     return res.json({ success: true, message: `Lead ${duplicateId} merged into ${primaryId} successfully.` });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -548,7 +513,7 @@ router.post('/duplicates/dismiss', (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/lifecycle/overview', async (req, res) => {
   try {
-    const leads = await getAllLeadsList();
+    const leads = await getAllLeadsList(req);
     const ALL_STAGES = [
       'NEW', 'ASSIGNED', 'CONTACTED', 'QUALIFIED', 'QUOTE CREATED',
       'QUOTE SENT', 'NEGOTIATION', 'PAYMENT PENDING', 'BOOKED', 'TICKETED', 'TRAVEL COMPLETED',
@@ -569,14 +534,14 @@ router.get('/lifecycle/overview', async (req, res) => {
 
     return res.json({ success: true, data: { stageCounts, totalLeads: leads.length, leads } });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
 router.get('/:id/lifecycle', async (req, res) => {
   try {
     const { id } = req.params;
-    const leads = await getAllLeadsList();
+    const leads = await getAllLeadsList(req);
     const lead = leads.find(l => l.id === id) || leads[0];
 
     if (!lead) {
@@ -651,7 +616,7 @@ router.get('/:id/lifecycle', async (req, res) => {
       }
     });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -664,15 +629,13 @@ router.post('/:id/lifecycle/transition', async (req, res) => {
       return res.status(400).json({ success: false, error: 'targetStatus is required' });
     }
 
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         await prisma.lead.update({
           where: { id },
           data: { status: targetStatus }
         });
-      } catch (e) {
-        console.warn('⚠️ [Lifecycle] DB update fallback:', e.message);
-      }
+      } catch (e) { throw e; }
     }
 
     metadataStore = loadMetadata();
@@ -696,14 +659,14 @@ router.post('/:id/lifecycle/transition', async (req, res) => {
     metadataStore[id].status = targetStatus;
     saveMetadata(metadataStore);
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.emit('lead:lifecycle_updated', { leadId: id, targetStatus, log: newLog });
     }
 
     return res.json({ success: true, message: 'Stage transitioned successfully', log: newLog });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -714,7 +677,7 @@ router.post('/:id/lifecycle/transition', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         const lead = await prisma.lead.findUnique({
           where: { id },
@@ -727,9 +690,7 @@ router.get('/:id', async (req, res) => {
         if (lead) {
           return res.json({ success: true, data: formatLead(lead) });
         }
-      } catch (dbErr) {
-        console.warn(`⚠️ [Leads API] Could not fetch lead ${id} from DB:`, dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     if (leadStore && typeof leadStore.getLeadById === 'function') {
@@ -745,7 +706,7 @@ router.get('/:id', async (req, res) => {
     return res.status(404).json({ success: false, error: 'Lead not found' });
   } catch (err) {
     console.error(`❌ [Leads API] Error fetching lead ${id}:`, err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -760,6 +721,7 @@ router.post('/', async (req, res) => {
     const now = new Date();
 
     const firstName = body.firstName || (body.name ? body.name.split(' ')[0] : 'Traveler');
+    if (!body.firstName?.trim() && !body.name?.trim()) return res.status(400).json({ success: false, error: 'Customer name is required' });
     const lastName = body.lastName || (body.name && body.name.split(' ').length > 1 ? body.name.split(' ').slice(1).join(' ') : '');
     const phone = body.phone || body.phoneNumber || body.fullPhone || null;
     const email = body.email || null;
@@ -849,95 +811,15 @@ router.post('/', async (req, res) => {
     saveMetadata(metadataStore);
 
     // Save in PostgreSQL via Prisma
-    let savedDbLead = null;
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
-      try {
-        savedDbLead = await prisma.lead.upsert({
-          where: { id: leadId },
-          update: newLeadData,
-          create: newLeadData,
-          include: {
-            assignedAgent: {
-              select: { id: true, name: true, email: true, role: true }
-            }
-          }
-        });
-        console.log(`✅ [PostgreSQL] Saved lead: ${savedDbLead.id} (${firstName} ${lastName})`);
-      } catch (dbErr) {
-        console.warn('⚠️ [Leads API] Database save warning:', dbErr.message);
-      }
-    }
-
-    // Auto-sync: Create/upsert passenger into Customer 360 (clients)
-    try {
-      const clientsMetaFile = path.join(__dirname, '../store/clients_metadata.json');
-      let clientsMeta = {};
-      try {
-        if (fs.existsSync(clientsMetaFile)) {
-          clientsMeta = JSON.parse(fs.readFileSync(clientsMetaFile, 'utf8'));
-        }
-      } catch (e) {}
-
-      const clientGenId = `CL-${Math.floor(1000 + Math.random() * 9000)}`;
-      const clientEmail = email || '';
-      const clientPhone = phone || '';
-
-      // Check if client already exists
-      const existingKey = Object.keys(clientsMeta).find(k => {
-        const m = clientsMeta[k];
-        return (clientEmail && m.email && m.email.toLowerCase() === clientEmail.toLowerCase()) ||
-               (clientPhone && m.phone && m.phone === clientPhone);
-      });
-
-      const targetClientId = existingKey || clientGenId;
-      const clientMetaRecord = {
-        id: targetClientId,
-        firstName,
-        lastName,
-        email: clientEmail,
-        phone: clientPhone,
-        city: body.city || '',
-        country: nationality || '',
-        nationality: nationality || '',
-        preferredCabinClass: body.cabinClass || (serviceId ? serviceId.charAt(0).toUpperCase() + serviceId.slice(1) : 'Economy'),
-        tier: 'Standard',
-        totalSpent: 0,
-        status: 'Active',
-        createdAt: body.createdAt || now.toISOString(),
-        updatedAt: now.toISOString(),
-      };
-
-      clientsMeta[targetClientId] = clientMetaRecord;
-      try {
-        const dir = path.dirname(clientsMetaFile);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(clientsMetaFile, JSON.stringify(clientsMeta, null, 2), 'utf8');
-      } catch (e) {}
-
-      if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
-        try {
-          await prisma.client.upsert({
-            where: { id: targetClientId },
-            update: { firstName, lastName, email: clientEmail, phone: clientPhone, nationality },
-            create: {
-              id: targetClientId,
-              firstName,
-              lastName,
-              email: clientEmail,
-              phone: clientPhone,
-              nationality,
-              tier: 'Standard',
-              totalSpent: 0,
-              status: 'Active'
-            }
-          });
-        } catch (e) {
-          console.warn('⚠️ [Leads API] Auto-sync client to DB warning:', e.message);
-        }
-      }
-    } catch (syncErr) {
-      console.warn('⚠️ [Leads API] Auto-sync to Customer 360 warning:', syncErr.message);
-    }
+    const savedDbLead = await prisma.$transaction(async tx => {
+      const saved = await tx.lead.create({ data: newLeadData, include: { assignedAgent: { select: { id: true, name: true, email: true, role: true } } } });
+      const customerMatches = [];
+      if (email) customerMatches.push({ email: { equals: email, mode: 'insensitive' } });
+      if (phone) customerMatches.push({ phone });
+      const existingCustomer = customerMatches.length ? await tx.client.findFirst({ where: { agentId: assignedAgentId, OR: customerMatches } }) : null;
+      if (!existingCustomer) await tx.client.create({ data: { firstName, lastName, email, phone, agentId: assignedAgentId, country, city, nationality, preferredCabinClass: cabinClass, status: 'Active' } });
+      return saved;
+    });
 
     const finalLead = savedDbLead || newLeadData;
     const enrichedLead = formatLead(finalLead);
@@ -949,7 +831,7 @@ router.post('/', async (req, res) => {
     }
 
     // Real-time broadcast to all connected agents
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('lead:new', enrichedLead);
       console.log(`📡 [Socket.io] Broadcasted lead:new to agents_group (${enrichedLead.id})`);
@@ -962,7 +844,7 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Leads API] Error creating lead:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -999,7 +881,7 @@ router.put('/:id', async (req, res) => {
     saveMetadata(metadataStore);
 
     let updatedDbLead = null;
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         const allowedPrismaFields = [
           'firstName', 'lastName', 'email', 'phone', 'nationality',
@@ -1027,9 +909,7 @@ router.put('/:id', async (req, res) => {
           }
         });
         console.log(`✅ [PostgreSQL] Updated lead: ${id}`);
-      } catch (dbErr) {
-        console.warn(`⚠️ [Leads API] Could not update lead ${id} in DB:`, dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     // Update memory cache
@@ -1040,7 +920,7 @@ router.put('/:id', async (req, res) => {
     const result = updatedDbLead || (memIndex !== -1 ? memoryLeads[memIndex] : { id, ...updates });
     const enrichedResult = formatLead(result);
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('lead:updated', enrichedResult);
     }
@@ -1052,7 +932,7 @@ router.put('/:id', async (req, res) => {
     });
   } catch (err) {
     console.error(`❌ [Leads API] Error updating lead ${req.params.id}:`, err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -1067,19 +947,17 @@ router.patch('/:id/assign', async (req, res) => {
     const targetAgentId = agentId || null;
 
     let updated = null;
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         updated = await prisma.lead.update({
           where: { id },
           data: { assignedAgentId: targetAgentId },
           include: { assignedAgent: { select: { id: true, name: true, email: true } } }
         });
-      } catch (dbErr) {
-        console.warn('⚠️ [Leads API] Could not update assignedAgent in DB:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('lead:assigned', { leadId: id, agentId });
       io.to(`agent:${agentId}`).emit('notification:new', {
@@ -1096,7 +974,7 @@ router.patch('/:id/assign', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Leads API] Error assigning agent:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -1112,18 +990,16 @@ router.delete('/:id', async (req, res) => {
     delete metadataStore[id];
     saveMetadata(metadataStore);
 
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         await prisma.lead.delete({ where: { id } });
         console.log(`✅ [PostgreSQL] Deleted lead: ${id}`);
-      } catch (dbErr) {
-        console.warn(`⚠️ [Leads API] Could not delete lead ${id} from DB:`, dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     memoryLeads = memoryLeads.filter((l) => l.id !== id);
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('lead:deleted', { id, leadId: id });
     }
@@ -1131,7 +1007,7 @@ router.delete('/:id', async (req, res) => {
     return res.json({ success: true, message: 'Lead deleted successfully' });
   } catch (err) {
     console.error('❌ [Leads API] Error deleting lead:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 

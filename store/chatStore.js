@@ -320,24 +320,12 @@ function markMessagesAsRead(sessionId, readerType) {
 }
 
 // ─── INTERNAL TEAM MESSAGES (STAFF-TO-STAFF ONLY) ─────────────────────────
-const teamMessages = [];
-
-function getTeamMessages(channelId) {
-  return teamMessages.filter(m => !channelId || m.channelId === channelId);
+async function getTeamMessages(channelId, userId) {
+  const rows=await prisma.appSetting.findMany({where:{key:{startsWith:'team-message:'}},orderBy:{updatedAt:'desc'},take:200});
+  return rows.map(r=>r.value).filter(m=>channelId==='general-desk'?m.channelId===channelId:(m.senderId===userId&&m.channelId===channelId)||(m.senderId===channelId&&m.channelId===userId)).reverse();
 }
-
-function addTeamMessage({ channelId = 'general-desk', senderId, senderName, senderRole, text }) {
-  const newMsg = {
-    id: uuidv4(),
-    channelId,
-    senderId: senderId || 'agent-1',
-    senderName: senderName || 'Staff Agent',
-    senderRole: senderRole || 'Staff',
-    text: text || '',
-    timestamp: new Date().toISOString()
-  };
-  teamMessages.push(newMsg);
-  return newMsg;
+async function addTeamMessage({channelId, senderId, senderName, senderRole, text}) {
+  try {const message={id:uuidv4(),channelId,senderId,senderName,senderRole,text,timestamp:new Date().toISOString()};await prisma.appSetting.create({data:{key:'team-message:'+message.id,value:message}});return message;}catch{return null;}
 }
 
 module.exports = {

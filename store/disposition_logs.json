@@ -1,15 +1,1 @@
-[
-  {
-    "id": "LOG-149",
-    "customer": "Amit Patel",
-    "phone": "+1 555-019-2834",
-    "agent": "Wael Madi (CEO)",
-    "disposition": "Booked",
-    "notes": "book ticket",
-    "createdAt": "2026-10-15T10:37:45.156Z",
-    "time": "Oct 15, 2026, 04:07 PM",
-    "actionTaken": "Convert Lead into Confirmed Booking and alert ticketing desk.",
-    "callbackDateTime": null,
-    "bookingValue": 5000
-  }
-]
+[]

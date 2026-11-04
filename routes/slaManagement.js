@@ -30,17 +30,17 @@ router.get('/', async (req, res) => {
       try {
         const [unassignedLeads, urgentBookings, bookings] = await Promise.all([
           prisma.lead.findMany({
-            where: { status: 'New Lead' },
+            where: { status: 'New Lead', ...(req.user.role === 'sales_executive' ? {assignedAgentId:req.user.id} : {}) },
             take: 10,
             orderBy: { createdAt: 'desc' }
           }).catch(() => []),
           prisma.booking.findMany({
-            where: { ticketStatus: 'Ready to Issue' },
+            where: { ticketStatus: 'Ready to Issue', ...(req.user.role === 'sales_executive' ? {agentId:req.user.id} : {}) },
             take: 10,
             orderBy: { createdAt: 'desc' }
           }).catch(() => []),
           prisma.booking.findMany({
-            where: { ticketStatus: 'Ticketed' }
+            where: { ticketStatus: 'Ticketed', ...(req.user.role === 'sales_executive' ? {agentId:req.user.id} : {}) }
           }).catch(() => [])
         ]);
 
@@ -58,7 +58,7 @@ router.get('/', async (req, res) => {
             deadlineTime: 'Within 5m',
             remaining: 'Active Queue',
             priority: 'Standard',
-            status: 'On Time',
+            status: 'Not measured',
             color: '#10B981',
             bg: 'rgba(16, 185, 129, 0.08)'
           });
@@ -76,7 +76,7 @@ router.get('/', async (req, res) => {
             deadlineTime: b.timeLimit || '10m',
             remaining: b.ttl || 'Active Countdown',
             priority: b.isTtlUrgent ? 'Critical Red' : 'High Priority',
-            status: b.isTtlUrgent ? 'Warning' : 'On Time',
+            status: b.isTtlUrgent ? 'Warning' : 'Not measured',
             color: b.isTtlUrgent ? '#F59E0B' : '#10B981',
             bg: b.isTtlUrgent ? 'rgba(245, 158, 11, 0.08)' : 'rgba(16, 185, 129, 0.08)'
           });
@@ -88,12 +88,12 @@ router.get('/', async (req, res) => {
 
     const kpis = [
       { id: 'activeSla', title: 'Total Active SLAs', value: `${activeItems.length} Active`, change: 'Live countdowns', color: '#6366F1' },
-      { id: 'completedOnTime', title: 'Completed On Time', value: `${completedBookings} SLAs`, change: '100% on-time', color: '#10B981' },
-      { id: 'approaching', title: 'Approaching Deadline', value: '0 SLAs', change: '< 2m remaining', color: '#F59E0B' },
-      { id: 'breached', title: 'SLA Breached', value: '0 Breaches', change: 'Zero breaches', color: '#EF4444' },
-      { id: 'avgResponse', title: 'Avg Response Time', value: '1m 30s', change: 'Target < 5m', color: '#0284C7' },
-      { id: 'avgTicketing', title: 'Avg Ticketing Time', value: '3m 15s', change: 'Target < 10m', color: '#8B5CF6' },
-      { id: 'slaCompliance', title: 'SLA Compliance %', value: '100%', change: 'Live compliance rate', color: '#D97706' }
+      { id: 'completedOnTime', title: 'Completed On Time', value: 'Not measured', change: 'Completion timing is not recorded', color: '#10B981' },
+      { id: 'approaching', title: 'Approaching Deadline', value: 'Not measured', change: 'Deadline monitoring unavailable', color: '#F59E0B' },
+      { id: 'breached', title: 'SLA Breached', value: 'Not measured', change: 'Breach history unavailable', color: '#EF4444' },
+      { id: 'avgResponse', title: 'Avg Response Time', value: 'Not measured', change: 'Target < 5m', color: '#0284C7' },
+      { id: 'avgTicketing', title: 'Avg Ticketing Time', value: 'Not measured', change: 'Target < 10m', color: '#8B5CF6' },
+      { id: 'slaCompliance', title: 'SLA Compliance %', value: 'Not measured', change: 'Timing history unavailable', color: '#D97706' }
     ];
 
     res.json({

@@ -8,6 +8,9 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const { prisma } = require('../db');
+const { recordAccess, scopedIo } = require('../middleware/recordAccess');
+router.use(recordAccess("consultation", "agentId", [], []));
+
 
 const STORE_FILE = path.join(__dirname, '../store/consultations.json');
 
@@ -87,16 +90,7 @@ router.get('/', async (req, res) => {
       count: filtered.length,
       data: filtered
     });
-  } catch (err) {
-    console.error('❌ [Consultations API] Error fetching consultations:', err.message);
-    return res.json({
-      success: true,
-      source: 'fallback',
-      count: memoryConsultations.length,
-      data: memoryConsultations,
-      warning: err.message
-    });
-  }
+  } catch (err) { return res.status(503).json({ success: false, error: 'Database query failed. Please retry.' }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -116,7 +110,7 @@ router.get('/:id', async (req, res) => {
     return res.json({ success: true, data: mem });
   } catch (err) {
     console.error('❌ [Consultations API] Error fetching consultation:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -126,6 +120,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
+    if (!body.clientName?.trim() || !(body.dateTime || body.meetingDate)) return res.status(400).json({ success: false, error: 'Customer name and appointment date are required' });
     const newCons = {
       id: body.id || `cons-${Date.now()}`,
       leadId: body.leadId || null,
@@ -152,6 +147,11 @@ router.post('/', async (req, res) => {
     if (prisma && prisma.consultation) {
       try {
         const prismaData = {
+          id: newCons.id,
+          leadId: newCons.leadId,
+          durationMinutes: Number(newCons.durationMinutes),
+          meetingDate: newCons.meetingDate,
+          meetingTime: newCons.meetingTime,
           clientName: newCons.clientName,
           clientEmail: newCons.clientEmail,
           clientPhone: newCons.clientPhone,
@@ -165,16 +165,14 @@ router.post('/', async (req, res) => {
           outcome: newCons.outcome
         };
         saved = await prisma.consultation.create({ data: prismaData });
-      } catch (dbErr) {
-        console.warn('⚠️ [Consultations API] DB insert warning:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     const finalRecord = saved || newCons;
     memoryConsultations.unshift(finalRecord);
     saveConsultations(memoryConsultations);
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('consultation:new', finalRecord);
     }
@@ -186,7 +184,7 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Consultations API] Error scheduling consultation:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -210,9 +208,7 @@ router.put('/:id', async (req, res) => {
           where: { id },
           data: safeData
         });
-      } catch (dbErr) {
-        console.warn('⚠️ [Consultations API] DB update warning:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     const idx = memoryConsultations.findIndex(c => c.id === id);
@@ -230,7 +226,7 @@ router.put('/:id', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Consultations API] Error updating consultation:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -244,9 +240,7 @@ router.delete('/:id', async (req, res) => {
     if (prisma) {
       try {
         await prisma.consultation.delete({ where: { id } });
-      } catch (dbErr) {
-        console.warn('⚠️ [Consultations API] DB delete warning:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     memoryConsultations = memoryConsultations.filter(c => c.id !== id);
@@ -254,7 +248,7 @@ router.delete('/:id', async (req, res) => {
     return res.json({ success: true, message: 'Consultation cancelled/deleted' });
   } catch (err) {
     console.error('❌ [Consultations API] Error deleting consultation:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 

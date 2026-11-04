@@ -6,6 +6,9 @@
 const express = require('express');
 const router = express.Router();
 const { prisma } = require('../db');
+const { recordAccess, scopedIo } = require('../middleware/recordAccess');
+router.use(recordAccess("payment", "agentId", ["invoiceNumber"], []));
+
 
 let memoryPayments = [];
 
@@ -18,6 +21,7 @@ router.get('/', async (req, res) => {
 
     if (prisma) {
       const where = {};
+      if (req.query.agentId) where.agentId = req.query.agentId;
       if (status && status !== 'all') where.status = status;
       if (method && method !== 'all') where.method = method;
       if (search) {
@@ -45,16 +49,7 @@ router.get('/', async (req, res) => {
       count: memoryPayments.length,
       data: memoryPayments
     });
-  } catch (err) {
-    console.error('❌ [Payments API] Error fetching payments:', err.message);
-    return res.json({
-      success: true,
-      source: 'fallback',
-      count: memoryPayments.length,
-      data: memoryPayments,
-      warning: err.message
-    });
-  }
+  } catch (err) { return res.status(503).json({ success: false, error: 'Database query failed. Please retry.' }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -79,7 +74,7 @@ router.get('/:id', async (req, res) => {
     return res.json({ success: true, data: memPayment });
   } catch (err) {
     console.error('❌ [Payments API] Error fetching payment:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -90,9 +85,11 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
+    if (!(body.customerName || body.clientName)?.trim() || !Number.isFinite(Number(body.amount)) || Number(body.amount) <= 0) return res.status(400).json({ success: false, error: 'Customer name and a positive invoice amount are required' });
     const invoiceNumber = body.invoiceNumber || `INV-${Math.floor(10000 + Math.random() * 90000)}`;
 
     const newPayment = {
+      agentId: body.agentId,
       invoiceNumber,
       clientId: body.clientId || null,
       customerName: body.customerName || body.clientName || 'Traveler',
@@ -105,7 +102,7 @@ router.post('/', async (req, res) => {
       serviceName: body.serviceName || 'Flight Booking',
       dueDate: body.dueDate || null,
       paidAt: body.status === 'Paid' ? new Date() : null,
-      paymentLink: body.paymentLink || `https://pay.wowmyflight.com/${invoiceNumber}`,
+      paymentLink: body.paymentLink || null,
       transactionId: body.transactionId || null,
       notes: body.notes || null,
       createdAt: new Date(),
@@ -116,15 +113,13 @@ router.post('/', async (req, res) => {
     if (prisma) {
       try {
         saved = await prisma.payment.create({ data: newPayment });
-      } catch (dbErr) {
-        console.warn('⚠️ [Payments API] DB insert warning:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     const finalPayment = saved || { id: invoiceNumber, ...newPayment };
     memoryPayments.unshift(finalPayment);
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('payment:new', finalPayment);
     }
@@ -136,7 +131,7 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Payments API] Error creating payment:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -168,9 +163,7 @@ router.patch('/:id/status', async (req, res) => {
             data: updates
           });
         }
-      } catch (dbErr) {
-        console.warn('⚠️ [Payments API] DB update warning:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     const idx = memoryPayments.findIndex(p => p.id === id || p.invoiceNumber === id);
@@ -180,7 +173,7 @@ router.patch('/:id/status', async (req, res) => {
 
     const result = updated || (idx !== -1 ? memoryPayments[idx] : { id, ...updates });
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('payment:updated', result);
     }
@@ -192,7 +185,7 @@ router.patch('/:id/status', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Payments API] Error updating status:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -211,9 +204,7 @@ router.delete('/:id', async (req, res) => {
         if (existing) {
           await prisma.payment.delete({ where: { id: existing.id } });
         }
-      } catch (dbErr) {
-        console.warn('⚠️ [Payments API] DB delete warning:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     memoryPayments = memoryPayments.filter(p => p.id !== id && p.invoiceNumber !== id);
@@ -221,7 +212,7 @@ router.delete('/:id', async (req, res) => {
     return res.json({ success: true, message: 'Payment record deleted' });
   } catch (err) {
     console.error('❌ [Payments API] Error deleting payment:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 

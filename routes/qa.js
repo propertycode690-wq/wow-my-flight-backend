@@ -9,6 +9,7 @@ const express = require('express');
 const router = express.Router();
 const { prisma } = require('../db');
 
+router.use('/documents', (req,res,next) => { if(req.body){req.body.category ||= req.body.type;req.body.fileUrl ||= req.body.fileData;req.body.comment ||= req.body.notes;} if(req.method==='PUT'&&req.path.endsWith('/status'))req.method='PATCH';require('./documents')(req,res,next);});
 let QA_DOCUMENTS = [];
 let QA_AUDITS = [];
 
@@ -28,13 +29,13 @@ router.get('/', async (req, res) => {
             id: d.id,
             type: d.category || 'Passport',
             customerName: d.customerName || 'Traveler',
-            customerEmail: d.customerEmail || 'client@wowmyflight.com',
-            bookingRef: d.bookingRef || 'BK-101',
-            pnr: d.pnr || 'WMF-99',
+            customerEmail: d.customerEmail || '',
+            bookingRef: d.bookingRef || '',
+            pnr: d.pnr || '',
             fileName: d.fileName || 'document.pdf',
-            fileSize: d.fileSize || '1.8 MB',
+            fileSize: d.fileSize || '',
             uploadDate: d.createdAt ? String(d.createdAt).substring(0, 10) : '2026-10-09',
-            expiryDate: d.expiryDate || '2031-10-15',
+            expiryDate: d.expiryDate || '',
             verifiedBy: d.reviewedBy || 'Pending Review',
             status: d.status || 'Pending',
             notes: d.comment || d.notes || ''
@@ -75,7 +76,7 @@ router.get('/', async (req, res) => {
         verified: verifiedCount,
         underReview: underReviewCount,
         uploaded: uploadedCount,
-        avgQaScore: docs.length > 0 ? 100 : 0
+        avgQaScore: null
       }
     });
   } catch (err) {
@@ -137,13 +138,13 @@ router.post('/documents', async (req, res) => {
       id: createdDoc ? createdDoc.id : `DOC-${Date.now()}`,
       type: b.type || 'Passport',
       customerName: b.customerName || 'Traveler',
-      customerEmail: b.customerEmail || 'client@wowmyflight.com',
-      bookingRef: b.bookingRef || 'BK-101',
-      pnr: b.pnr || 'WMF-99',
+      customerEmail: b.customerEmail || '',
+      bookingRef: b.bookingRef || '',
+      pnr: b.pnr || '',
       fileName: b.fileName || 'Travel_Document.pdf',
       fileSize: b.fileSize || '1.5 MB',
       uploadDate: new Date().toISOString().split('T')[0],
-      expiryDate: b.expiryDate || '2031-10-15',
+      expiryDate: b.expiryDate || '',
       verifiedBy: 'Pending Review',
       status: 'Uploaded',
       notes: b.notes || 'Uploaded via QA Dashboard.',
@@ -200,7 +201,7 @@ router.get('/audits', (req, res) => {
       averageScore: QA_AUDITS.length > 0 ? 95.0 : 0,
       passedCount: QA_AUDITS.filter(a => a.status === 'Passed').length,
       auditedToday: QA_AUDITS.length,
-      qaCompliance: QA_AUDITS.length > 0 ? '100%' : '100%'
+      qaCompliance: 'Not measured'
     }
   });
 });
@@ -219,7 +220,7 @@ router.post('/audits', (req, res) => {
     status: (b.overallScore || 95) >= 90 ? 'Passed' : 'Needs Coaching',
     evaluator: b.evaluator || 'Super Admin (QA)',
     feedback: b.feedback || 'QA scorecard audit completed.',
-    scores: b.scores || { greeting: 100, verification: 95, fareExplanation: 90, closing: 95 }
+    scores: b.scores || {}
   };
   QA_AUDITS.unshift(newAudit);
   res.json({ success: true, message: 'QA Audit evaluation saved successfully', data: newAudit });

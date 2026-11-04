@@ -48,7 +48,7 @@ router.get('/', async (req, res) => {
       }
     }
 
-    const grossProfit = Math.round(totalRevenue * 0.13);
+    const grossProfit = bookings.filter(b => b.ticketStatus === "Ticketed").reduce((sum,b)=>sum+(Number(String(b.commission||0).replace(/[^0-9.-]/g,""))||0),0);
     const convRate = totalLeads > 0 ? ((totalBookings / totalLeads) * 100).toFixed(1) : '0.0';
     const avgValue = totalBookings > 0 ? Math.round(totalRevenue / totalBookings) : 0;
 
@@ -56,8 +56,8 @@ router.get('/', async (req, res) => {
       { id: 'leads', title: 'Total Leads', value: `${totalLeads} Leads`, change: 'Live DB count', color: '#6366F1' },
       { id: 'bookings', title: 'Total Bookings', value: `${totalBookings} Bookings`, change: 'Live DB count', color: '#2563EB' },
       { id: 'revenue', title: 'Total Revenue', value: `$${totalRevenue.toLocaleString()}`, change: 'Live DB payments', color: '#10B981' },
-      { id: 'profit', title: 'Gross Profit', value: `$${grossProfit.toLocaleString()}`, change: '13.0% margin', color: '#D97706' },
-      { id: 'conv', title: 'Conversion Rate', value: `${convRate}%`, change: 'Calculated conversion', color: '#8B5CF6' },
+      { id: 'profit', title: 'Recorded Commission', value: `$${grossProfit.toLocaleString()}`, change: 'Recorded ticket commission', color: '#D97706' },
+      { id: 'conv', title: 'Conversion Rate', value: 'Not measured', change: 'Booking to lead attribution incomplete', color: '#8B5CF6' },
       { id: 'avgValue', title: 'Avg Booking Value', value: `$${avgValue.toLocaleString()}`, change: 'Per ticket avg', color: '#0284C7' },
       { id: 'pending', title: 'Pending Payments', value: `$${pendingRevenue.toLocaleString()}`, change: 'In clearing queue', color: '#F59E0B' },
       { id: 'refund', title: 'Refund Amount', value: '$0', change: '0 approved cases', color: '#EF4444' },
@@ -69,12 +69,12 @@ router.get('/', async (req, res) => {
       name: u.name,
       calls: 0,
       talkTime: '0h 00m',
-      leads: totalLeads,
+      leads: null,
       quotes: 0,
-      bookings: totalBookings,
-      conv: `${convRate}%`,
-      revenue: `$${totalRevenue.toLocaleString()}`,
-      profit: `$${grossProfit.toLocaleString()}`
+      bookings: bookings.filter(b=>b.agentId === u.id).length,
+      conv: 'Not measured',
+      revenue: 'Not attributed',
+      profit: 'Not attributed'
     }));
 
     const revenueTrend = [

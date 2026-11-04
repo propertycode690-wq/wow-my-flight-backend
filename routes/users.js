@@ -1,13 +1,13 @@
 ﻿const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const rateLimit = require('express-rate-limit');
+const { loginRateLimit } = require('../middleware/loginRateLimit');
 const { randomUUID } = require('crypto');
 const { prisma } = require('../db');
 const router = express.Router();
 const fields = { id:true, name:true, email:true, role:true, phone:true, avatar:true, status:true, createdAt:true, updatedAt:true };
 const roles = ['super_admin', 'admin', 'sales_executive'];
-router.post('/login', rateLimit({ windowMs:900000, max:20, standardHeaders:true, legacyHeaders:false }), async (req,res) => {
+router.post('/login', loginRateLimit, async (req,res) => {
   try {
     const {email,password} = req.body || {};
     if (typeof email !== 'string' || typeof password !== 'string' || !password) return res.status(400).json({success:false,error:'Email and password required'});

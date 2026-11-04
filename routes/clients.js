@@ -22,6 +22,9 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { prisma, isDbConnected } = require('../db');
+const { recordAccess, scopedIo } = require('../middleware/recordAccess');
+router.use(recordAccess("client", "agentId", [], []));
+
 
 // Persistent metadata file
 const METADATA_FILE = path.join(__dirname, '../store/clients_metadata.json');
@@ -69,8 +72,8 @@ let memoryClients = Object.values(metadataStore).map(m => ({
  */
 function formatClient(c) {
   if (!c) return null;
-  const store = loadMetadata();
-  let meta = store[c.id] || metadataStore[c.id];
+  const store = {};
+  let meta = {};
   if (!meta) {
     const values = Object.values(store);
     meta = values.find(m => (m.email && c.email && m.email.toLowerCase() === c.email.toLowerCase()) || (m.phone && c.phone && m.phone === c.phone)) || {};
@@ -123,9 +126,10 @@ router.get('/', async (req, res) => {
     metadataStore = loadMetadata();
     const { search, status, tier } = req.query;
 
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         const where = {};
+        if (req.query.agentId) where.agentId = req.query.agentId;
         if (status && status !== 'all' && status !== 'All') {
           where.status = status;
         }
@@ -152,9 +156,7 @@ router.get('/', async (req, res) => {
           count: dbClients.length,
           data: dbClients.map(formatClient),
         });
-      } catch (dbErr) {
-        console.warn('⚠️ [Clients API] DB query failed, falling back to memory:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     // Filter memory cache
@@ -180,16 +182,7 @@ router.get('/', async (req, res) => {
       count: filteredMem.length,
       data: filteredMem.map(formatClient),
     });
-  } catch (err) {
-    console.error('❌ [Clients API] Error fetching clients:', err.message);
-    return res.json({
-      success: true,
-      source: 'fallback',
-      count: memoryClients.length,
-      data: memoryClients.map(formatClient),
-      warning: err.message,
-    });
-  }
+  } catch (err) { return res.status(503).json({ success: false, error: 'Database query failed. Please retry.' }); }
 });
 
 /**
@@ -201,7 +194,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         const dbClient = await prisma.client.findUnique({
           where: { id },
@@ -209,9 +202,7 @@ router.get('/:id', async (req, res) => {
         if (dbClient) {
           return res.json({ success: true, data: formatClient(dbClient) });
         }
-      } catch (dbErr) {
-        console.warn(`⚠️ [Clients API] Could not fetch client ${id} from DB:`, dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     const memClient = memoryClients.find((c) => c.id === id);
@@ -222,7 +213,7 @@ router.get('/:id', async (req, res) => {
     return res.status(404).json({ success: false, error: 'Client not found' });
   } catch (err) {
     console.error(`❌ [Clients API] Error fetching client ${id}:`, err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -240,6 +231,7 @@ router.post('/', async (req, res) => {
     const now = new Date();
 
     const firstName = body.firstName || (body.name ? body.name.split(' ')[0] : '');
+    if (!firstName.trim()) return res.status(400).json({ success: false, error: 'Customer name is required' });
     const lastName = body.lastName || (body.name && body.name.split(' ').length > 1 ? body.name.split(' ').slice(1).join(' ') : '');
     const email = body.email || null;
     const phone = body.phone || null;
@@ -276,6 +268,7 @@ router.post('/', async (req, res) => {
     saveMetadata(metadataStore);
 
     const clientRecord = {
+      agentId: body.agentId,
       id: clientId,
       firstName,
       lastName,
@@ -300,17 +293,13 @@ router.post('/', async (req, res) => {
 
     let createdRecord = null;
 
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
-        createdRecord = await prisma.client.upsert({
-          where: { id: clientId },
-          update: clientRecord,
-          create: clientRecord,
+        createdRecord = await prisma.client.create({
+          data: clientRecord,
         });
         console.log(`✅ [PostgreSQL] Saved client: ${createdRecord.id} (${firstName} ${lastName})`);
-      } catch (dbErr) {
-        console.warn('⚠️ [PostgreSQL] prisma.client.upsert failed, falling back to memory:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     const finalClient = createdRecord || clientRecord;
@@ -318,7 +307,7 @@ router.post('/', async (req, res) => {
 
     const formatted = formatClient(finalClient);
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('client:new', formatted);
       console.log(`📡 [Socket.io] Broadcasted client:new (${formatted.id})`);
@@ -331,7 +320,7 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Clients API] Error creating client:', err);
-    return res.status(500).json({
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({
       success: false,
       error: 'Failed to create client',
       message: err.message,
@@ -355,6 +344,9 @@ router.put('/:id', async (req, res) => {
     saveMetadata(metadataStore);
 
     const updateData = {};
+    for (const field of ['city', 'country', 'timezone', 'passportNumber', 'passportExpiry', 'preferredCabinClass', 'seatPreference', 'mealPreference', 'preferredLanguage', 'agentId']) {
+      if (updates[field] !== undefined) updateData[field] = updates[field];
+    }
     if (updates.firstName !== undefined) updateData.firstName = updates.firstName;
     if (updates.lastName !== undefined) updateData.lastName = updates.lastName;
     if (updates.email !== undefined) updateData.email = updates.email;
@@ -373,16 +365,14 @@ router.put('/:id', async (req, res) => {
 
     let updatedRecord = null;
 
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         updatedRecord = await prisma.client.update({
           where: { id },
           data: updateData,
         });
         console.log(`✅ [PostgreSQL] Updated client: ${id}`);
-      } catch (dbErr) {
-        console.warn(`⚠️ [PostgreSQL] prisma.client.update failed for ${id}:`, dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     const memIndex = memoryClients.findIndex((c) => c.id === id);
@@ -396,7 +386,7 @@ router.put('/:id', async (req, res) => {
 
     const formatted = formatClient(updatedRecord);
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('client:updated', formatted);
     }
@@ -408,7 +398,7 @@ router.put('/:id', async (req, res) => {
     });
   } catch (err) {
     console.error(`❌ [Clients API] Error updating client ${id}:`, err);
-    return res.status(500).json({
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({
       success: false,
       error: 'Failed to update client',
       message: err.message,
@@ -425,20 +415,18 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
+    if (prisma) {
       try {
         await prisma.client.delete({ where: { id } });
         console.log(`✅ [PostgreSQL] Deleted client: ${id}`);
-      } catch (dbErr) {
-        console.warn(`⚠️ [PostgreSQL] prisma.client.delete failed for ${id}:`, dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     delete metadataStore[id];
     saveMetadata(metadataStore);
     memoryClients = memoryClients.filter((c) => c.id !== id);
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('client:deleted', { id });
     }
@@ -449,7 +437,7 @@ router.delete('/:id', async (req, res) => {
     });
   } catch (err) {
     console.error(`❌ [Clients API] Error deleting client ${id}:`, err);
-    return res.status(500).json({
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({
       success: false,
       error: 'Failed to delete client',
       message: err.message,

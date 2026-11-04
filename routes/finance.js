@@ -11,13 +11,7 @@ const { prisma } = require('../db');
 
 let REFUND_REQUESTS = [];
 
-let COMMISSION_RATES = [
-  { agentId: 'c1', type: '10%', value: 10 },
-  { agentId: 'c2', type: '5%', value: 5 },
-  { agentId: 'c3', type: 'custom', value: 12 },
-  { agentId: 'c4', type: 'fixed', value: 200 },
-  { agentId: 'c5', type: '10%', value: 10 }
-];
+let COMMISSION_RATES = [];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. GET /api/finance/refunds
@@ -87,20 +81,21 @@ router.get('/commissions/report', async (req, res) => {
 
         reports = (payments || []).map((p, idx) => {
           const amt = Number(p.amount) || 0;
-          const commEarned = Math.round(amt * 0.1);
+          const rate = COMMISSION_RATES.find(r=>r.agentId===p.agentId);
+          const commEarned = rate ? (rate.type === 'fixed' ? Number(rate.value) : amt * Number(rate.value)/100) : 0;
           return {
             id: `COMM-${String(idx + 1).padStart(2, '0')}`,
             paymentId: p.invoiceNumber || p.id,
             clientName: p.customerName || 'Customer',
             serviceId: p.serviceName || 'Flight Booking',
             amountPaid: amt,
-            agentId: 'usr-consultant',
-            agentName: 'Issac (Sales)',
-            structure: '10% (Standard)',
+            agentId: p.agentId,
+            agentName: p.agentId || 'Unassigned',
+            structure: rate ? String(rate.value) : 'Not configured',
             commissionEarned: commEarned,
-            commissionPaid: commEarned,
-            commissionPending: 0,
-            status: 'Paid',
+            commissionPaid: 0,
+            commissionPending: commEarned,
+            status: 'Accrued',
             date: p.paidAt ? String(p.paidAt).substring(0, 10) : (p.createdAt ? String(p.createdAt).substring(0, 10) : '2026-10-09')
           };
         });

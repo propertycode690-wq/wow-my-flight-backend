@@ -12,6 +12,9 @@
 const express = require('express');
 const router = express.Router();
 const { prisma } = require('../db');
+const { recordAccess, scopedIo } = require('../middleware/recordAccess');
+router.use(recordAccess("quote", "agentId", ["quoteId"], []));
+
 
 // In-memory fallback
 let memoryQuotes = [];
@@ -25,7 +28,7 @@ router.get('/', async (req, res) => {
 
     if (prisma) {
       const where = {};
-      if (status && status !== 'All') {
+      if (status && status.toLowerCase() !== 'all') {
         where.status = status;
       }
       if (agentId) {
@@ -70,16 +73,7 @@ router.get('/', async (req, res) => {
       count: filtered.length,
       data: filtered
     });
-  } catch (err) {
-    console.error('❌ [Quotes API] Error fetching quotes:', err.message);
-    return res.json({
-      success: true,
-      source: 'fallback',
-      count: memoryQuotes.length,
-      data: memoryQuotes,
-      warning: err.message
-    });
-  }
+  } catch (err) { return res.status(503).json({ success: false, error: 'Database query failed. Please retry.' }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,7 +100,7 @@ router.get('/:id', async (req, res) => {
     return res.json({ success: true, data: memQuote });
   } catch (err) {
     console.error('❌ [Quotes API] Error fetching quote:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -116,6 +110,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
+    if (!(body.customerName || body.clientName)?.trim()) return res.status(400).json({ success: false, error: 'Customer name is required' });
     const quoteId = body.quoteId || `QT-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const newQuote = {
@@ -154,15 +149,13 @@ router.post('/', async (req, res) => {
         saved = await prisma.quote.create({
           data: newQuote
         });
-      } catch (dbErr) {
-        console.warn('⚠️ [Quotes API] DB insert warning:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     const finalQuote = saved || { id: quoteId, ...newQuote };
     memoryQuotes.unshift(finalQuote);
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('quote:new', finalQuote);
     }
@@ -174,7 +167,7 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Quotes API] Error creating quote:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -205,9 +198,7 @@ router.put('/:id', async (req, res) => {
             data: safeData
           });
         }
-      } catch (dbErr) {
-        console.warn('⚠️ [Quotes API] DB update warning:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     // Update memory
@@ -218,7 +209,7 @@ router.put('/:id', async (req, res) => {
 
     const result = updated || (idx !== -1 ? memoryQuotes[idx] : { id, ...updates });
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('quote:updated', result);
     }
@@ -230,7 +221,7 @@ router.put('/:id', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Quotes API] Error updating quote:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -238,49 +229,8 @@ router.put('/:id', async (req, res) => {
 // 5. POST /api/quotes/:id/send
 // Send quote proposal link to customer via SMS / WhatsApp / Email
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/:id/send', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { channel = 'email', customerContact } = req.body;
+router.post('/:id/send', (req, res) => res.status(501).json({ success: false, error: 'Quote delivery is not configured. Download the proposal and send it through your approved email channel.' }));
 
-    let quote = null;
-    if (prisma) {
-      quote = await prisma.quote.findFirst({
-        where: { OR: [{ id }, { quoteId: id }] }
-      });
-      if (quote) {
-        quote = await prisma.quote.update({
-          where: { id: quote.id },
-          data: { status: 'Sent', updatedAt: new Date() }
-        });
-      }
-    }
-
-    const idx = memoryQuotes.findIndex(q => q.id === id || q.quoteId === id);
-    if (idx !== -1) {
-      memoryQuotes[idx].status = 'Sent';
-      quote = quote || memoryQuotes[idx];
-    }
-
-    const io = req.app.get('io');
-    if (io) {
-      io.to('agents_group').emit('quote:sent', { quoteId: id, channel, customerContact });
-    }
-
-    return res.json({
-      success: true,
-      message: `Quote proposal sent to customer via ${channel.toUpperCase()}`,
-      data: quote || { id, status: 'Sent' }
-    });
-  } catch (err) {
-    console.error('❌ [Quotes API] Error sending quote:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. DELETE /api/quotes/:id
-// ─────────────────────────────────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -293,9 +243,7 @@ router.delete('/:id', async (req, res) => {
         if (existing) {
           await prisma.quote.delete({ where: { id: existing.id } });
         }
-      } catch (dbErr) {
-        console.warn('⚠️ [Quotes API] DB delete warning:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     memoryQuotes = memoryQuotes.filter(q => q.id !== id && q.quoteId !== id);
@@ -303,7 +251,7 @@ router.delete('/:id', async (req, res) => {
     return res.json({ success: true, message: 'Quote deleted successfully' });
   } catch (err) {
     console.error('❌ [Quotes API] Error deleting quote:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 

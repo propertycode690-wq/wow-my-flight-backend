@@ -78,6 +78,7 @@ model Lead {
 // 3. Clients (Confirmed / Booked Travelers)
 // ─────────────────────────────────────────────────────────────────────────────
 model Client {
+  agentId             String?
   id                  String       @id @default(uuid())
   firstName           String
   lastName            String?
@@ -226,6 +227,7 @@ model Communication {
 // 9. Bookings & Ticketing Queue (Travelopro GDS & CRM Issuance)
 // ─────────────────────────────────────────────────────────────────────────────
 model Booking {
+  agentId             String?
   id             String    @id @default(uuid())
   bookingId      String    @unique
   pnr            String
@@ -299,6 +301,7 @@ model Quote {
 // 11. Payments & Invoices
 // ─────────────────────────────────────────────────────────────────────────────
 model Payment {
+  agentId             String?
   id             String    @id @default(uuid())
   invoiceNumber  String    @unique
   clientId       String?
@@ -326,6 +329,10 @@ model Payment {
 // ─────────────────────────────────────────────────────────────────────────────
 model Consultation {
   id             String    @id @default(uuid())
+  leadId         String?
+  durationMinutes Int      @default(30)
+  meetingDate    String?
+  meetingTime    String?
   clientName     String
   clientEmail    String?
   clientPhone    String?
@@ -347,6 +354,11 @@ model Consultation {
 // 13. Customer Documents & Verification
 // ─────────────────────────────────────────────────────────────────────────────
 model Document {
+  agentId             String?
+  customerEmail       String?
+  bookingRef          String?
+  pnr                 String?
+  expiryDate          String?
   id             String    @id @default(uuid())
   clientId       String?
   customerName   String
@@ -382,5 +394,13 @@ model Notification {
   updatedAt DateTime @updatedAt
 
   @@map("notifications")
+}
+
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
 }
 

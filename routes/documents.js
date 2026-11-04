@@ -6,6 +6,9 @@
 const express = require('express');
 const router = express.Router();
 const { prisma } = require('../db');
+const { recordAccess, scopedIo } = require('../middleware/recordAccess');
+router.use(recordAccess("document", "agentId", [], []));
+
 
 let memoryDocuments = [];
 
@@ -18,6 +21,7 @@ router.get('/', async (req, res) => {
 
     if (prisma) {
       const where = {};
+      if (req.query.agentId) where.agentId = req.query.agentId;
       if (status && status !== 'all') where.status = status;
       if (category && category !== 'all') where.category = category;
       if (clientId) where.clientId = clientId;
@@ -45,16 +49,7 @@ router.get('/', async (req, res) => {
       count: memoryDocuments.length,
       data: memoryDocuments
     });
-  } catch (err) {
-    console.error('❌ [Documents API] Error fetching documents:', err.message);
-    return res.json({
-      success: true,
-      source: 'fallback',
-      count: memoryDocuments.length,
-      data: memoryDocuments,
-      warning: err.message
-    });
-  }
+  } catch (err) { return res.status(503).json({ success: false, error: 'Database query failed. Please retry.' }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -74,7 +69,7 @@ router.get('/:id', async (req, res) => {
     return res.json({ success: true, data: mem });
   } catch (err) {
     console.error('❌ [Documents API] Error fetching document:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -84,13 +79,19 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
+    if (!(body.customerName || body.clientName)?.trim() || !(body.fileName || body.name)?.trim() || !body.fileUrl) return res.status(400).json({ success: false, error: 'Customer, filename and uploaded document are required' });
     const newDoc = {
+      agentId: body.agentId,
+      customerEmail: body.customerEmail || null,
+      bookingRef: body.bookingRef || null,
+      pnr: body.pnr || null,
+      expiryDate: body.expiryDate || null,
       clientId: body.clientId || null,
       customerName: body.customerName || body.clientName || 'Traveler',
       fileName: body.fileName || body.name || 'Document.pdf',
       fileType: body.fileType || 'application/pdf',
-      fileSize: body.fileSize || '1.2 MB',
-      fileUrl: body.fileUrl || 'https://assets.wowmyflight.com/docs/sample.pdf',
+      fileSize: body.fileSize || null,
+      fileUrl: body.fileUrl,
       category: body.category || 'Passport',
       status: body.status || 'Pending',
       comment: body.comment || null,
@@ -105,15 +106,13 @@ router.post('/', async (req, res) => {
     if (prisma) {
       try {
         saved = await prisma.document.create({ data: newDoc });
-      } catch (dbErr) {
-        console.warn('⚠️ [Documents API] DB insert warning:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     const finalRecord = saved || { id: `doc-${Date.now()}`, ...newDoc };
     memoryDocuments.unshift(finalRecord);
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('document:new', finalRecord);
     }
@@ -125,7 +124,7 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Documents API] Error recording document:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -141,7 +140,7 @@ router.patch('/:id/status', async (req, res) => {
     const updates = {
       status,
       comment: comment || null,
-      reviewedBy: reviewedBy || 'Agent',
+      reviewedBy: req.user.id,
       reviewedAt: new Date(),
       updatedAt: new Date()
     };
@@ -153,9 +152,7 @@ router.patch('/:id/status', async (req, res) => {
           where: { id },
           data: updates
         });
-      } catch (dbErr) {
-        console.warn('⚠️ [Documents API] DB update warning:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     const idx = memoryDocuments.findIndex(d => d.id === id);
@@ -165,7 +162,7 @@ router.patch('/:id/status', async (req, res) => {
 
     const result = updated || (idx !== -1 ? memoryDocuments[idx] : { id, ...updates });
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.to('agents_group').emit('document:reviewed', result);
     }
@@ -177,7 +174,7 @@ router.patch('/:id/status', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Documents API] Error reviewing document:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 
@@ -191,9 +188,7 @@ router.delete('/:id', async (req, res) => {
     if (prisma) {
       try {
         await prisma.document.delete({ where: { id } });
-      } catch (dbErr) {
-        console.warn('⚠️ [Documents API] DB delete warning:', dbErr.message);
-      }
+      } catch (dbErr) { throw dbErr; }
     }
 
     memoryDocuments = memoryDocuments.filter(d => d.id !== id);
@@ -201,7 +196,7 @@ router.delete('/:id', async (req, res) => {
     return res.json({ success: true, message: 'Document deleted successfully' });
   } catch (err) {
     console.error('❌ [Documents API] Error deleting document:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ success: false, error: err.message });
   }
 });
 

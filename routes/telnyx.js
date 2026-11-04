@@ -200,14 +200,7 @@ router.post('/calls/action', async (req, res) => {
     return res.status(400).json({ success: false, error: 'callControlId and action are required' });
   }
 
-  // If simulated call or fallback
-  if (callControlId.startsWith('call_')) {
-    if (action === 'hangup') callStore.markCallEnded(callControlId);
-    if (action === 'hold') callStore.updateCallLog(callControlId, { status: 'on_hold' });
-    if (action === 'unhold') callStore.updateCallLog(callControlId, { status: 'answered' });
-    return res.json({ success: true, data: { action, status: 'ok', simulated: true } });
-  }
-
+  if (callControlId.startsWith('call_')) return res.status(400).json({success:false,error:'A real provider call control ID is required'});
   try {
     const call = new telnyx.Call({ id: callControlId });
     let result;

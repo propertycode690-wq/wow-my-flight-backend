@@ -102,6 +102,7 @@ io.use(async (socket, next) => {
 });
 
 io.on('connection', (socket) => {
+  require('./middleware/socketAccess').installSocketAccess(socket, chatStore);
   console.log(`[Socket.io] Client connected: ${socket.id}`);
 
   // --- AGENT REGISTRATION & AVAILABILITY ---
@@ -111,6 +112,7 @@ io.on('connection', (socket) => {
     agentName = socket.data.user.name;
     role = socket.data.user.role;
     socket.join(`agent:${agentId}`);
+    if (['super_admin', 'admin'].includes(role)) socket.join('crm:admins');
     
     // Store agent connection and availability
     connectedAgents.set(socket.id, {
@@ -336,7 +338,7 @@ io.on('connection', (socket) => {
 
   // 4.5 Get active sessions (requested by agent dashboard on mount)
   socket.on('chat:get_active_sessions', (data, callback) => {
-    const sessions = chatStore.getAllSessions();
+    const sessions = chatStore.getAllSessions().filter(s => ['super_admin','admin'].includes(socket.data.user.role) || !s.agentId || s.agentId === socket.data.user.id);
     if (typeof callback === 'function') {
       callback(sessions);
     } else if (typeof data === 'function') {
@@ -374,8 +376,8 @@ io.on('connection', (socket) => {
   });
 
   // 8. ─── INTERNAL TEAM CHAT (STAFF ONLY) ──────────────────────────────────
-  socket.on('team:get_messages', ({ channelId }, callback) => {
-    const msgs = chatStore.getTeamMessages(channelId);
+  socket.on('team:get_messages', async ({ channelId }, callback) => {
+    const msgs = await chatStore.getTeamMessages(channelId, socket.data.user.id);
     if (typeof callback === 'function') {
       callback({ success: true, messages: msgs });
     }
@@ -385,7 +387,8 @@ io.on('connection', (socket) => {
     const newMsg = chatStore.addTeamMessage(msgData);
     if (newMsg) {
       // Broadcast strictly to agents_group (customers never in this room)
-      io.to('agents_group').emit('team:receive_message', newMsg);
+      const room = newMsg.channelId === 'general-desk' ? 'agents_group' : [`agent:${newMsg.senderId}`, `agent:${newMsg.channelId}`];
+      io.to(room).emit('team:receive_message', newMsg);
       if (typeof callback === 'function') {
         callback({ success: true, message: newMsg });
       }

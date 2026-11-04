@@ -75,8 +75,8 @@ router.get('/', async (req, res) => {
       { id: 'calls', title: 'Total Calls', value: String(callCount), change: 'Floor volume', isUp: true, color: '#F5F3FF' },
       { id: 'talktime', title: 'Total Talk Time', value: '0h 0m', change: 'Floor volume', isUp: true, color: '#FEF3C7' },
       { id: 'followups', title: 'Pending Follow-ups', value: '0', change: 'Live follow-ups', isUp: false, color: '#FEF2F2' },
-      { id: 'sla', title: 'SLA Compliance', value: '100%', change: 'Live SLA status', isUp: true, color: '#ECFDF5' },
-      { id: 'qa', title: 'Booking QA Score', value: '100%', change: 'Audit accuracy', isUp: true, color: '#EFF6FF' },
+      { id: 'sla', title: 'SLA Compliance', value: 'Not measured', change: 'Live SLA status', isUp: true, color: '#ECFDF5' },
+      { id: 'qa', title: 'Booking QA Score', value: 'Not measured', change: 'Audit accuracy', isUp: true, color: '#EFF6FF' },
       { id: 'revPerAgent', title: 'Revenue per Agent', value: `$${revPerAgent.toLocaleString()}`, change: 'Live avg per rep', isUp: true, color: '#E8EAF6' },
       { id: 'bookPerAgent', title: 'Bookings per Agent', value: String(bookPerAgent), change: 'Live closed deals', isUp: true, color: '#FFFBEB' }
     ];
@@ -92,22 +92,22 @@ router.get('/', async (req, res) => {
       callsCompleted: 0,
       talkTime: '0h 00m',
       pendingFollowups: 0,
-      qaScore: 100,
-      slaStatus: 'On Track',
+      qaScore: null,
+      slaStatus: 'Not measured',
       badge: u.role === 'super_admin' ? 'Executive' : 'Active',
-      status: u.status === 'active' ? 'AVAILABLE' : 'OFFLINE'
+      status: u.status === 'active' ? 'Active account' : 'Inactive'
     }));
 
     const floorAgents = dbUsers.filter(u => u.status === 'active').map(u => ({
       id: u.id,
       name: u.name,
-      status: 'AVAILABLE',
+      status: 'Unknown',
       timeOnStatus: 'Active',
       currentLead: 'Ready for Next Inbound',
       todayCalls: 0,
       todayBookings: 0,
       followupsDue: 0,
-      qaPct: 100,
+      qaPct: null,
       color: 'info'
     }));
 
@@ -204,7 +204,7 @@ router.post('/leads/assign', async (req, res) => {
     return res.json({ success: true, message: `Lead ${leadId} assigned to ${agentName}` });
   } catch (err) {
     console.warn('[TeamLeader API] Assign lead error:', err.message);
-    return res.json({ success: true, message: 'Lead assigned' });
+    return res.status(503).json({ success: false, error: 'Lead assignment failed' });
   }
 });
 
@@ -293,7 +293,7 @@ router.post('/escalations/:id/resolve', (req, res) => {
 router.post('/payments/:id/remind', (req, res) => {
   const { id } = req.params;
   const { channel = 'WhatsApp' } = req.body;
-  res.json({ success: true, message: `${channel} payment reminder dispatched successfully.` });
+  res.status(501).json({ success: false, error: 'Payment reminder delivery is not configured' });
 });
 
 module.exports = router;

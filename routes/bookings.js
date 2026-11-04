@@ -6,6 +6,9 @@
 const express = require('express');
 const router = express.Router();
 const { prisma, isDbConnected } = require('../db');
+const { recordAccess, scopedIo } = require('../middleware/recordAccess');
+router.use(recordAccess("booking", "agentId", ["bookingId", "pnr"], []));
+
 
 // In-memory fallback cache (strictly real bookings only, no dummy data)
 let memoryBookings = [];
@@ -18,6 +21,7 @@ router.get('/', async (req, res) => {
   try {
     if (prisma) {
       const dbBookings = await prisma.booking.findMany({
+        where: req.query.agentId ? { agentId: req.query.agentId } : {},
         orderBy: { createdAt: 'desc' }
       });
       return res.json({
@@ -34,16 +38,7 @@ router.get('/', async (req, res) => {
       count: memoryBookings.length,
       data: memoryBookings
     });
-  } catch (err) {
-    console.error('❌ [Bookings API] Error fetching bookings:', err);
-    return res.json({
-      success: true,
-      source: 'Fallback Memory',
-      count: memoryBookings.length,
-      data: memoryBookings,
-      warning: err.message
-    });
-  }
+  } catch (err) { return res.status(503).json({ success: false, error: 'Database query failed. Please retry.' }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,7 +49,8 @@ router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
     const bookingId = body.bookingId || `BK-${Math.floor(1000 + Math.random() * 9000)}`;
-    const pnr = body.pnr || (body.pnrCode || `PNR${Math.random().toString(36).substring(2, 6).toUpperCase()}`);
+    const pnr = body.pnr || body.pnrCode;
+    if (!pnr || !(body.passenger || body.customerName)) return res.status(400).json({ success: false, error: 'A supplier PNR and passenger name are required' });
     
     const toCurrencyStr = (val, fallback) => {
       if (val === undefined || val === null || val === '') return fallback;
@@ -63,25 +59,26 @@ router.post('/', async (req, res) => {
     };
 
     const newRecord = {
+      agentId: body.agentId,
       bookingId,
       pnr,
       supplier: body.supplier || 'Travelopro GDS',
       ticketNumber: body.ticketNumber || 'Unissued',
       passenger: body.passenger || body.customerName || 'Lead Passenger',
       name: body.name || body.passenger || body.customerName || 'Lead Passenger',
-      route: body.route || `${body.origin || 'DEL'} → ${body.destination || 'BOM'}`,
+      route: body.route || `${body.origin || ''} → ${body.destination || ''}`,
       origin: body.origin || '',
       destination: body.destination || '',
-      fare: toCurrencyStr(body.fare || body.netFare, '$450.00'),
-      taxes: toCurrencyStr(body.taxes, '$80.00'),
-      commission: toCurrencyStr(body.commission, '$45.00 (10%)'),
-      amount: toCurrencyStr(body.amount || body.totalAmount || body.sellingPrice, '$530.00'),
-      paymentStatus: body.paymentStatus || 'Payment Confirmed',
-      ticketStatus: body.ticketStatus || 'Ready to Issue',
+      fare: toCurrencyStr(body.fare ?? body.netFare, '$0.00'),
+      taxes: toCurrencyStr(body.taxes, '$0.00'),
+      commission: toCurrencyStr(body.commission, '$0.00'),
+      amount: toCurrencyStr(body.amount ?? body.totalAmount ?? body.sellingPrice, '$0.00'),
+      paymentStatus: body.paymentStatus || 'Payment Pending',
+      ticketStatus: body.ticketStatus || 'Pending Ticketing',
       timeLimit: body.timeLimit || '24h remaining',
       ttl: body.ttl || body.timeLimit || '24h remaining',
       isTtlUrgent: Boolean(body.isTtlUrgent),
-      issuingAgent: body.issuingAgent || 'Abu',
+      issuingAgent: body.issuingAgent || 'Unassigned',
       issueDateTime: body.issueDateTime || '—',
       date: body.date || new Date().toLocaleDateString(),
       cabinClass: body.cabinClass || 'Economy',
@@ -103,7 +100,7 @@ router.post('/', async (req, res) => {
     }
 
     // Broadcast live event to socket.io listeners
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.emit('booking:created', createdBooking);
     }
@@ -115,7 +112,7 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Bookings API] Error creating booking:', err);
-    return res.status(500).json({ error: 'Failed to create booking', message: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ error: 'Failed to create booking', message: err.message });
   }
 });
 
@@ -172,7 +169,7 @@ router.patch('/:id/status', async (req, res) => {
       return res.status(404).json({ error: 'Booking not found' });
     }
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.emit('booking:updated', updated);
     }
@@ -184,7 +181,7 @@ router.patch('/:id/status', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ [Bookings API] Error updating booking status:', err);
-    return res.status(500).json({ error: 'Failed to update booking status', message: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ error: 'Failed to update booking status', message: err.message });
   }
 });
 
@@ -195,7 +192,8 @@ router.patch('/:id/status', async (req, res) => {
 router.post('/:id/issue', async (req, res) => {
   try {
     const { id } = req.params;
-    const { eTickets, issuingAgent = 'Parminder (CEO)' } = req.body;
+    const { eTickets, issuingAgent = req.user.name } = req.body;
+    if (!['admin', 'super_admin'].includes(req.user.role)) return res.status(403).json({success:false,error:'Only administrators can record supplier-issued tickets'});
 
     const formattedTicket = Array.isArray(eTickets) ? eTickets.join(', ') : eTickets;
     if (!formattedTicket) return res.status(400).json({ success: false, error: 'Confirmed supplier ticket numbers are required' });
@@ -248,21 +246,21 @@ router.post('/:id/issue', async (req, res) => {
       }
     }
 
-    const io = req.app.get('io');
+    const io = scopedIo(req);
     if (io) {
       io.emit('booking:ticketed', updated);
     }
 
     return res.json({
       success: true,
-      message: 'E-Ticket issued and saved to PostgreSQL Database',
+      message: 'Supplier ticket details recorded; no ticket was issued by this endpoint',
       data: updated,
       eTickets: Array.isArray(eTickets) ? eTickets : [formattedTicket],
       issueDateTime
     });
   } catch (err) {
     console.error('❌ [Bookings API] Error issuing ticket:', err);
-    return res.status(500).json({ error: 'Failed to issue ticket in DB', message: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ error: 'Failed to issue ticket in DB', message: err.message });
   }
 });
 
@@ -296,7 +294,7 @@ router.delete('/:id', async (req, res) => {
     return res.json({ success: true, deleted, message: `Booking ${id} deleted.` });
   } catch (err) {
     console.error('❌ [Bookings API] Error deleting booking:', err);
-    return res.status(500).json({ error: 'Failed to delete booking', message: err.message });
+    return res.status(err?.code === 'P2025' ? 404 : err?.code === 'P2002' ? 409 : 503).json({ error: 'Failed to delete booking', message: err.message });
   }
 });
 
