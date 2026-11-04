@@ -1,0 +1,8 @@
+[
+  { "id": "usr-parminder", "name": "Parminder", "email": "parminder@wowmyflight.com", "role": "super_admin", "phone": "+17864605166", "status": "active" },
+  { "id": "usr-xavier", "name": "Xavier", "email": "xavier@wowmyflight.com", "role": "admin", "phone": "+18333955554", "status": "active" },
+  { "id": "usr-issac", "name": "Issac", "email": "issac@wowmyflight.com", "role": "sales_executive", "phone": "+18503329681", "status": "active" },
+  { "id": "usr-george", "name": "George", "email": "george@wowmyflight.com", "role": "sales_executive", "phone": "+18503329676", "status": "active" },
+  { "id": "usr-adam", "name": "Adam", "email": "adam@wowmyflight.com", "role": "sales_executive", "phone": "+18503329262", "status": "active" },
+  { "id": "usr-abu", "name": "Abu", "email": "abu@wowmyflight.com", "role": "sales_executive", "phone": "+18634860303", "status": "active" }
+]

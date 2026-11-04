@@ -17,6 +17,8 @@ model User {
   name           String
   email          String            @unique
   passwordHash   String?
+  telnyxCredentialId String?
+  telnyxSipUsername String?
   role           String            @default("consultant")
   phone          String?
   avatar         String?

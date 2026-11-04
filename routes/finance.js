@@ -95,7 +95,7 @@ router.get('/commissions/report', async (req, res) => {
             serviceId: p.serviceName || 'Flight Booking',
             amountPaid: amt,
             agentId: 'usr-consultant',
-            agentName: 'Sofia Rodriguez (Sales)',
+            agentName: 'Issac (Sales)',
             structure: '10% (Standard)',
             commissionEarned: commEarned,
             commissionPaid: commEarned,

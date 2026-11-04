@@ -10,10 +10,18 @@
  */
 
 require('dotenv').config();
+
+// Ensure JWT_SECRET is present
+if (!process.env.JWT_SECRET) {
+  console.error('\n❌ FATAL: JWT_SECRET environment variable is missing in server configuration!\n');
+  process.exit(1);
+}
+
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
+const { requireAuth } = require('./middleware/auth');
 
 const telnyxRoutes = require('./routes/telnyx');
 const traveloproRoutes = require('./routes/travelopro');
@@ -79,13 +87,29 @@ app.set('io', io);
 
 // Track connected agents: socket.id -> { agentId, agentName, role, status }
 const connectedAgents = new Map();
-const SUPPORT_ROLES = ['consultant', 'sales_agent', 'agent', 'team_leader', 'expert_team_leader', 'admin', 'super_admin', 'operations', 'marketing', 'finance', 'flight_expert', 'ticketing_agent'];
+const SUPPORT_ROLES = ['sales_executive', 'consultant', 'sales_agent', 'agent', 'team_leader', 'expert_team_leader', 'admin', 'super_admin', 'operations', 'marketing', 'finance', 'flight_expert', 'ticketing_agent'];
+
+io.use(async (socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next();
+  try {
+    const claims = require('jsonwebtoken').verify(token, process.env.JWT_SECRET);
+    const user = await prisma.user.findUnique({ where: { id: claims.id }, select: { id: true, name: true, role: true, status: true } });
+    if (!user || user.status !== 'active') return next(new Error('Account unavailable'));
+    socket.data.user = user;
+    next();
+  } catch { next(new Error('Invalid session')); }
+});
 
 io.on('connection', (socket) => {
   console.log(`[Socket.io] Client connected: ${socket.id}`);
 
   // --- AGENT REGISTRATION & AVAILABILITY ---
   socket.on('agent:register', ({ agentId, agentName, role, status = 'available' }) => {
+    if (!socket.data.user) return;
+    agentId = socket.data.user.id;
+    agentName = socket.data.user.name;
+    role = socket.data.user.role;
     socket.join(`agent:${agentId}`);
     
     // Store agent connection and availability
@@ -387,7 +411,7 @@ app.use(cors({
 }));
 
 // Parse JSON — with 50mb limit for travel document file uploads
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '50mb', verify: (req, res, buffer) => { req.rawBody = buffer; } }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -426,6 +450,27 @@ app.get('/health', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // API Routes
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Global API Authentication Guard
+app.use('/api', (req, res, next) => {
+  // Public exempt routes that do not require JWT
+  const url = req.originalUrl || req.url;
+  const isPublicRoute =
+    ['/api/users/login', '/api/agents/login', '/api/auth/login'].includes(url.split('?')[0]) ||
+    url.startsWith('/api/webhooks') ||
+    url.startsWith('/api/telnyx/inbound') ||
+    url.startsWith('/api/telnyx/status') ||
+    url.startsWith('/api/telnyx/webhooks');
+
+  if (isPublicRoute) {
+    return next();
+  }
+
+  return requireAuth(req, res, next);
+});
+
+app.use('/api', require('./middleware/access').enforceRole);
+app.use('/api/telnyx', require('./routes/phone'));
 app.use('/api/telnyx', telnyxRoutes);
 app.use('/api/travelopro', traveloproRoutes);
 app.use('/api/bookings', bookingRoutes);

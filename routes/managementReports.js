@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
           prisma.lead.count().catch(() => 0),
           prisma.booking.count().catch(() => 0),
           prisma.payment.findMany().catch(() => []),
-          prisma.user.findMany().catch(() => []),
+          prisma.user.findMany({ select: { id: true, name: true, email: true, role: true, phone: true, status: true, avatar: true, createdAt: true } }).catch(() => []),
           prisma.booking.findMany({ take: 50, orderBy: { createdAt: 'desc' } }).catch(() => [])
         ]);
 

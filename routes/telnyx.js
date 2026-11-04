@@ -23,28 +23,7 @@ const telnyx = Telnyx(process.env.TELNYX_API_KEY);
 // 1. GET /api/telnyx/numbers
 //    Returns all active phone numbers on the account
 // ─────────────────────────────────────────────────────────────────────────────
-router.get('/numbers', async (req, res) => {
-  try {
-    const response = await telnyx.phoneNumbers.list({ 'page[size]': 25 });
-    const numbers = (response.data || []).map(n => ({
-      id: n.id,
-      number: n.phone_number,
-      type: n.phone_number_type,
-      status: n.status,
-    }));
-    res.json({ success: true, data: numbers });
-  } catch (err) {
-    console.warn('[Telnyx] GET /numbers fallback used (API key unauthenticated):', err.message);
-    // Fallback to configured default number so frontend continues functioning seamlessly
-    const defaultNumber = process.env.TELNYX_DEFAULT_FROM_NUMBER || '+18503329681';
-    res.json({
-      success: true,
-      data: [
-        { id: 'fallback-num-1', number: defaultNumber, type: 'toll_free', status: 'active' }
-      ]
-    });
-  }
-});
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1b. GET /api/telnyx/calls/logs
@@ -80,53 +59,7 @@ router.get('/calls/logs', async (req, res) => {
 //    Generates a short-lived WebRTC credential for a logged-in agent.
 //    Frontend uses this token to initialize the Telnyx WebRTC SDK.
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/token', async (req, res) => {
-  try {
-    const { agentId, agentName } = req.body;
 
-    if (!agentId) {
-      return res.status(400).json({ success: false, error: 'agentId is required' });
-    }
-
-    const credentialConnectionId = process.env.TELNYX_CREDENTIAL_CONNECTION_ID || '3035701286214304976';
-
-    // Create an on-demand telephony credential linked to the credential connection
-    const credResponse = await telnyx.telephonyCredentials.create({
-      connection_id: credentialConnectionId,
-    });
-
-    const credentialId = credResponse.data.id;
-    const sipUsername = credResponse.data.sip_username;
-    const sipPassword = credResponse.data.sip_password;
-
-    // Generate a short-lived JWT token for WebRTC via Telnyx API
-    const tokenFetch = await fetch(`https://api.telnyx.com/v2/telephony_credentials/${credentialId}/token`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.TELNYX_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const token = await tokenFetch.text();
-
-    console.log(`[Telnyx] WebRTC token successfully created for agent: ${agentName} (${agentId})`);
-
-    res.json({
-      success: true,
-      data: {
-        token,
-        credentialId,
-        sipUsername,
-        sipPassword,
-        connectionId: credentialConnectionId,
-      },
-    });
-  } catch (err) {
-    console.error('[Telnyx] POST /token error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. POST /api/telnyx/calls/dial
@@ -196,22 +129,7 @@ router.post('/calls/dial', async (req, res) => {
             });
           }
         }
-      } catch (pollErr) {
-        consecutiveFailures++;
-        // If 404/422 repeated 3 times, the call session has been destroyed
-        if (consecutiveFailures >= 3) {
-          clearInterval(pollInterval);
-          const endedLog = callStore.markCallEnded(callControlId);
-          if (io) {
-            io.emit('telnyx:call_ended', {
-              callControlId,
-              callLogId: endedLog?.id,
-              durationSeconds: endedLog?.durationSeconds || 0,
-              dispositionRequired: true,
-            });
-          }
-        }
-      }
+      } catch (pollErr) { return res.status(502).json({success:false,error:'Call operation failed. Please check your phone connection.'}); }
     }, 2000);
 
     // Safety timeout: stop polling after 30 minutes
@@ -226,31 +144,7 @@ router.post('/calls/dial', async (req, res) => {
         status: 'dialing',
       },
     });
-  } catch (err) {
-    console.warn('[Telnyx] POST /calls/dial error (Fallback to simulated live call):', err.message);
-    
-    // Create simulated call log so frontend calling, live timer, and disposition work smoothly
-    const mockCallControlId = `call_${Date.now()}`;
-    const log = callStore.createCallLog({
-      callControlId: mockCallControlId,
-      direction: 'outbound',
-      fromNumber: from,
-      toNumber: to,
-      agentId,
-      agentName,
-    });
-
-    res.json({
-      success: true,
-      data: {
-        callControlId: mockCallControlId,
-        callLegId: `leg_${Date.now()}`,
-        callLogId: log.id,
-        status: 'dialing',
-        warning: `Telnyx Live API rejected credentials: ${err.message}. Running call in sandbox simulator mode.`,
-      },
-    });
-  }
+  } catch (err) { return res.status(502).json({success:false,error:'Call operation failed. Please check your phone connection.'}); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -292,16 +186,7 @@ router.get('/calls/:callControlId/status', async (req, res) => {
         telnyxData: call?.data,
       }
     });
-  } catch (err) {
-    res.json({
-      success: true,
-      data: {
-        is_alive: true, // Keep alive on initial network hiccups
-        status: 'dialing',
-        error: err.message,
-      }
-    });
-  }
+  } catch (err) { return res.status(502).json({success:false,error:'Call operation failed. Please check your phone connection.'}); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -364,11 +249,7 @@ router.post('/calls/action', async (req, res) => {
 
     console.log(`[Telnyx] Call action "${action}" on ${callControlId}`);
     res.json({ success: true, data: result });
-  } catch (err) {
-    console.warn(`[Telnyx] POST /calls/action (${action}) warning:`, err.message);
-    if (action === 'hangup') callStore.markCallEnded(callControlId);
-    res.json({ success: true, data: { action, fallback: true } });
-  }
+  } catch (err) { return res.status(502).json({success:false,error:'Call operation failed. Please check your phone connection.'}); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -430,186 +311,20 @@ router.delete('/calls/:id', (req, res) => {
 // 7. POST /api/telnyx/sms/send
 //    Sends an SMS to a customer using the messaging profile
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/sms/send', async (req, res) => {
-  try {
-    const { to, from, text, agentId } = req.body;
 
-    if (!to || !text) {
-      return res.status(400).json({ success: false, error: 'to and text are required' });
-    }
-
-    const fromNumber = from || process.env.TELNYX_DEFAULT_FROM_NUMBER;
-
-    const msgResponse = await telnyx.messages.create({
-      from: fromNumber,
-      to,
-      text,
-      messaging_profile_id: process.env.TELNYX_MESSAGING_PROFILE_ID,
-    });
-
-    const messageId = msgResponse.data?.id;
-    console.log(`[Telnyx] SMS sent: ${fromNumber} → ${to} (agent: ${agentId}), id: ${messageId}`);
-
-    res.json({
-      success: true,
-      data: {
-        messageId,
-        from: fromNumber,
-        to,
-        status: msgResponse.data?.to?.[0]?.status || 'queued',
-      },
-    });
-  } catch (err) {
-    console.error('[Telnyx] POST /sms/send error:', err.message, err.raw);
-    let errorMessage = err.message;
-
-    if (err.message && err.message.includes('Alpha sender not configured')) {
-      errorMessage = `Indian phone numbers (+91) require an Alphanumeric Sender ID registered in the Telnyx portal (due to TRAI DLT regulations). US/Canada (+1) customer numbers are fully supported directly.`;
-    }
-
-    res.status(500).json({ success: false, error: errorMessage });
-  }
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 8. POST /api/telnyx/webhooks/voice
 //    Receives all Telnyx Call Control webhook events.
 //    IMPORTANT: This URL must be set in Telnyx portal under your Connection.
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/webhooks/voice', express.raw({ type: 'application/json' }), (req, res) => {
-  // Telnyx sends raw JSON body — already parsed by express.json() middleware
-  const body = req.body;
-  const event = body?.data;
 
-  if (!event) {
-    return res.status(400).json({ error: 'Invalid webhook payload' });
-  }
-
-  const eventType = event.event_type;
-  const payload = event.payload || {};
-  const callControlId = payload.call_control_id;
-
-  // Get the global Socket.io instance to push real-time events to frontend
-  const io = req.app.get('io');
-
-  console.log(`[Telnyx Webhook] Event: ${eventType} | Call: ${callControlId}`);
-
-  switch (eventType) {
-    // ── Call is dialing (outbound) / incoming (inbound) ──────────────────────
-    case 'call.initiated': {
-      const direction = payload.direction; // 'outbound' | 'inbound'
-      if (direction === 'inbound') {
-        const from = payload.from;
-        const to = payload.to;
-
-        // Log the inbound call
-        const log = callStore.createCallLog({
-          callControlId,
-          direction: 'inbound',
-          fromNumber: from,
-          toNumber: to,
-          agentId: null,
-          agentName: null,
-        });
-
-        // Push incoming call alert to ALL connected agents via Socket.io
-        if (io) {
-          io.emit('telnyx:incoming_call', {
-            callControlId,
-            callLogId: log.id,
-            from,
-            to,
-            direction: 'inbound',
-          });
-        }
-        console.log(`[Telnyx] Inbound call from: ${from} to ${to}`);
-      }
-      break;
-    }
-
-    // ── Call was answered ─────────────────────────────────────────────────────
-    case 'call.answered': {
-      callStore.markCallAnswered(callControlId);
-      if (io) {
-        io.emit('telnyx:call_answered', { callControlId });
-      }
-      console.log(`[Telnyx] Call answered: ${callControlId}`);
-      break;
-    }
-
-    // ── Call ended / hungup ───────────────────────────────────────────────────
-    case 'call.hangup': {
-      const log = callStore.markCallEnded(callControlId);
-      if (io) {
-        io.emit('telnyx:call_ended', {
-          callControlId,
-          callLogId: log?.id,
-          durationSeconds: log?.durationSeconds || 0,
-          dispositionRequired: true,
-        });
-      }
-      console.log(`[Telnyx] Call ended: ${callControlId} (${log?.durationSeconds}s)`);
-      break;
-    }
-
-    // ── Recording is ready ────────────────────────────────────────────────────
-    case 'call.recording.saved': {
-      const recordingUrl = payload.recording_urls?.mp3 || payload.public_recording_urls?.mp3;
-      if (recordingUrl && callControlId) {
-        callStore.saveRecording(callControlId, recordingUrl);
-        if (io) {
-          io.emit('telnyx:recording_ready', { callControlId, recordingUrl });
-        }
-        console.log(`[Telnyx] Recording saved: ${recordingUrl}`);
-      }
-      break;
-    }
-
-    // ── Other events (log & ignore for now) ──────────────────────────────────
-    default: {
-      console.log(`[Telnyx Webhook] Unhandled event: ${eventType}`);
-    }
-  }
-
-  // Telnyx requires a 200 response to acknowledge webhook receipt
-  res.status(200).json({ received: true });
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 9. POST /api/telnyx/webhooks/messaging
 //    Receives SMS delivery status updates & inbound SMS messages
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/webhooks/messaging', (req, res) => {
-  const body = req.body;
-  const event = body?.data;
-  const eventType = event?.event_type;
-  const payload = event?.payload || {};
-  const io = req.app.get('io');
 
-  console.log(`[Telnyx Messaging Webhook] Event: ${eventType}`);
-
-  if (eventType === 'message.received') {
-    // Inbound SMS from a customer
-    const from = payload.from?.phone_number;
-    const text = payload.text;
-    const to = payload.to?.[0]?.phone_number;
-
-    if (io) {
-      io.emit('telnyx:sms_received', { from, to, text, receivedAt: new Date().toISOString() });
-    }
-    console.log(`[Telnyx SMS] Inbound SMS from ${from}: "${text}"`);
-  } else if (eventType === 'message.finalized') {
-    // Delivery status update
-    const messageId = payload.id;
-    const status = payload.to?.[0]?.status;
-    if (io) {
-      io.emit('telnyx:sms_status', { messageId, status });
-    }
-    console.log(`[Telnyx SMS] Message ${messageId} status: ${status}`);
-  }
-
-  res.status(200).json({ received: true });
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 10. CALL DISPOSITIONS: GET & POST /api/telnyx/dispositions

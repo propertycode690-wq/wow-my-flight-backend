@@ -41,7 +41,7 @@ router.get('/', async (req, res) => {
           prisma.lead.count().catch(() => 0),
           prisma.booking.count().catch(() => 0),
           prisma.payment.findMany().catch(() => []),
-          prisma.user.findMany().catch(() => []),
+          prisma.user.findMany({ select: { id: true, name: true, email: true, role: true, phone: true, status: true, avatar: true, createdAt: true } }).catch(() => []),
           prisma.lead.findMany({ take: 50, orderBy: { createdAt: 'desc' } }).catch(() => []),
           prisma.payment.findMany({ where: { status: 'Pending' }, take: 50, orderBy: { createdAt: 'desc' } }).catch(() => []),
           prisma.callLog ? prisma.callLog.count().catch(() => 0) : 0
@@ -189,7 +189,7 @@ router.post('/leads/assign', async (req, res) => {
   try {
     const { leadId, agentName } = req.body;
     if (prisma && leadId) {
-      const users = await prisma.user.findMany().catch(() => []);
+      const users = await prisma.user.findMany({ select: { id: true, name: true, email: true, role: true, phone: true, status: true, avatar: true, createdAt: true } }).catch(() => []);
       const matched = users.find(u => u.name === agentName || u.id === agentName);
       const agentId = matched ? matched.id : agentName;
 
@@ -214,7 +214,7 @@ router.post('/leads/distribute', async (req, res) => {
     let distributedCount = 0;
 
     if (prisma) {
-      const users = await prisma.user.findMany().catch(() => []);
+      const users = await prisma.user.findMany({ select: { id: true, name: true, email: true, role: true, phone: true, status: true, avatar: true, createdAt: true } }).catch(() => []);
       const activeUsers = users.filter(u => u.status === 'active');
       const eligibleUsers = activeUsers.length > 0 ? activeUsers : users;
 

@@ -12,44 +12,7 @@ const { prisma } = require('../db');
 const chatStore = require('../store/chatStore');
 
 // In-memory fallback notifications when running without PostgreSQL
-let memoryNotifications = [
-  {
-    id: 'notif-seed-1',
-    title: 'Booking Confirmed',
-    message: 'Booking PNR PNR31411 confirmed for Traveler.',
-    type: 'booking',
-    read: true,
-    link: '/bookings',
-    createdAt: new Date(Date.now() - 12 * 86400000),
-  },
-  {
-    id: 'notif-seed-2',
-    title: 'Booking Confirmed',
-    message: 'Booking PNR PNR20625 confirmed for Traveler.',
-    type: 'booking',
-    read: true,
-    link: '/bookings',
-    createdAt: new Date(Date.now() - 12 * 86400000),
-  },
-  {
-    id: 'notif-seed-3',
-    title: 'Document Uploaded',
-    message: 'Zunme - Web Search (1).pdf uploaded for Tanu Patel.',
-    type: 'document',
-    read: true,
-    link: '/super_admin/qa',
-    createdAt: new Date(Date.now() - 12 * 86400000),
-  },
-  {
-    id: 'notif-seed-4',
-    title: 'Payment Received',
-    message: 'Payment of $1500 verified and processed via Stripe.',
-    type: 'payment',
-    read: false,
-    link: '/finance/payments',
-    createdAt: new Date(Date.now() - 12 * 86400000),
-  },
-];
+let memoryNotifications = [];
 
 /**
  * Format relative time display (e.g., 'Just now', '5m ago', '2h ago')

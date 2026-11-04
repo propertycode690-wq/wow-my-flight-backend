@@ -109,7 +109,8 @@ let memoryLeads = [];
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
-    const { status, assignedAgentId, search, env = 'PRODUCTION' } = req.query;
+    const { status, search, env = 'PRODUCTION' } = req.query;
+    const assignedAgentId = req.user?.role === 'sales_executive' ? req.user.id : req.query.assignedAgentId;
 
     if (prisma && (typeof isDbConnected !== 'function' || isDbConnected())) {
       try {
@@ -143,7 +144,7 @@ router.get('/', async (req, res) => {
 
         // Combine with any leadStore sandbox/memory leads
         let storeLeads = [];
-        if (leadStore && typeof leadStore.getLeads === 'function') {
+        if (env === 'SANDBOX' && leadStore && typeof leadStore.getLeads === 'function') {
           const storeResult = leadStore.getLeads({ isSandbox: env === 'SANDBOX' });
           storeLeads = storeResult.data || [];
         }
@@ -265,10 +266,10 @@ router.get('/distribution/workload', async (req, res) => {
 
     if (agents.length === 0) {
       agents = [
-        { id: 'usr-consultant', name: 'Sofia Rodriguez (Sales)', team: 'Alpha Sales' },
+        { id: 'usr-consultant', name: 'Issac (Sales)', team: 'Alpha Sales' },
         { id: 'usr-alex', name: 'Alex Miller', team: 'Corporate Sales' },
         { id: 'usr-sarah', name: 'Sarah Jenkins', team: 'Europe Desk' },
-        { id: 'usr-michael', name: 'Michael Chang', team: 'Escalation Team' },
+        { id: 'usr-michael', name: 'Adam', team: 'Escalation Team' },
         { id: 'usr-carlos', name: 'Carlos Ticketing', team: 'GDS Issuance' }
       ];
     }

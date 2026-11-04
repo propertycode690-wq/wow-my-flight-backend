@@ -320,35 +320,7 @@ function markMessagesAsRead(sessionId, readerType) {
 }
 
 // ─── INTERNAL TEAM MESSAGES (STAFF-TO-STAFF ONLY) ─────────────────────────
-const teamMessages = [
-  {
-    id: 'team-seed-1',
-    channelId: 'general-desk',
-    senderId: 'admin-1',
-    senderName: 'Alex Turner',
-    senderRole: 'System Mgr',
-    text: 'Good day team! Please note that British Airways has updated baggage policies on transatlantic routes.',
-    timestamp: new Date(Date.now() - 3600000 * 2).toISOString()
-  },
-  {
-    id: 'team-seed-2',
-    channelId: 'general-desk',
-    senderId: 'ops-1',
-    senderName: 'Emily Davis',
-    senderRole: 'Operations Lead',
-    text: 'Noted Alex. Ticketing desk is currently reviewing pending PNR queues.',
-    timestamp: new Date(Date.now() - 3600000 * 1).toISOString()
-  },
-  {
-    id: 'team-seed-3',
-    channelId: 'ticketing-ops',
-    senderId: 'ticket-1',
-    senderName: 'Michael Brown',
-    senderRole: 'Ticketing Desk',
-    text: 'Sabre GDS terminal is fully operational. All queues cleared till 5 PM.',
-    timestamp: new Date(Date.now() - 1800000).toISOString()
-  }
-];
+const teamMessages = [];
 
 function getTeamMessages(channelId) {
   return teamMessages.filter(m => !channelId || m.channelId === channelId);

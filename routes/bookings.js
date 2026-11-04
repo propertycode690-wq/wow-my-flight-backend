@@ -81,7 +81,7 @@ router.post('/', async (req, res) => {
       timeLimit: body.timeLimit || '24h remaining',
       ttl: body.ttl || body.timeLimit || '24h remaining',
       isTtlUrgent: Boolean(body.isTtlUrgent),
-      issuingAgent: body.issuingAgent || 'Omar Farouq',
+      issuingAgent: body.issuingAgent || 'Abu',
       issueDateTime: body.issueDateTime || '—',
       date: body.date || new Date().toLocaleDateString(),
       cabinClass: body.cabinClass || 'Economy',
@@ -195,9 +195,10 @@ router.patch('/:id/status', async (req, res) => {
 router.post('/:id/issue', async (req, res) => {
   try {
     const { id } = req.params;
-    const { eTickets, issuingAgent = 'Wael Madi (CEO)' } = req.body;
+    const { eTickets, issuingAgent = 'Parminder (CEO)' } = req.body;
 
-    const formattedTicket = Array.isArray(eTickets) ? eTickets.join(', ') : (eTickets || '0172345678901');
+    const formattedTicket = Array.isArray(eTickets) ? eTickets.join(', ') : eTickets;
+    if (!formattedTicket) return res.status(400).json({ success: false, error: 'Confirmed supplier ticket numbers are required' });
     const issueDateTime = new Date().toLocaleString('en-US', {
       day: '2-digit',
       month: 'short',

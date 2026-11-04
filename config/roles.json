@@ -1,0 +1,1214 @@
+[
+  {
+    "id": "super_admin",
+    "name": "Super Admin",
+    "description": "Unrestricted organizational access across all branches, systems, APIs, and security controls.",
+    "isCustom": false,
+    "userCount": 0,
+    "permissions": [
+      {
+        "key": "leads_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_edit",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_assign",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_reassign",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_delete",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_export",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_merge",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "customers_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "customers_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "customers_edit",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "customers_delete",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "customers_docs_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "customers_docs_upload",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_make",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_receive",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_transfer",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_recording_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_recording_download",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_recording_delete",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_schedule_callback",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "quotes_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "quotes_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "quotes_edit",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "quotes_discount_request",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "quotes_discount_approve",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "quotes_delete",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "bookings_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "bookings_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "bookings_modify",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "bookings_cancel",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "bookings_approve_changes",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "ticketing_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "ticketing_issue",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "ticketing_void",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "ticketing_reissue",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "ticketing_cancel",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "payments_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "payments_link_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "payments_record",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "payments_refund_request",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "payments_refund_approve",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "payments_supplier_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "finance_view_dashboard",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "finance_revenue_reports",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "finance_gross_profit",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "finance_export_reports",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "finance_manage_chargebacks",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "qa_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "qa_checklist_complete",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "qa_notes_edit",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "sla_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "sla_override",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "sla_reports_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "marketing_view_dashboard",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "marketing_campaign_manage",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "marketing_utm_builder",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "marketing_export",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "automation_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "automation_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "automation_toggle",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "automation_routing_config",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_edit",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_disable",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_delete",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_reset_password",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_assign_roles",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_configure_permissions",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "system_api_config",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "system_notification_rules",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "system_sla_rules",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "system_ivr_config",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "system_suppliers_manage",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "audit_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "audit_export",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "audit_archive",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "audit_sensitive_view",
+        "enabled": true,
+        "scope": "all"
+      }
+    ]
+  },
+  {
+    "id": "admin",
+    "name": "General Manager (Admin)",
+    "description": "Full operational authority over sales, ticketing, finance, staff and reports across all branches.",
+    "isCustom": false,
+    "userCount": 0,
+    "permissions": [
+      {
+        "key": "leads_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_edit",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_assign",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_reassign",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_delete",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_export",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "leads_merge",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "customers_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "customers_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "customers_edit",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "customers_delete",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "customers_docs_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "customers_docs_upload",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_make",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_receive",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_transfer",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_recording_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_recording_download",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_recording_delete",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "calls_schedule_callback",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "quotes_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "quotes_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "quotes_edit",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "quotes_discount_request",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "quotes_discount_approve",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "quotes_delete",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "bookings_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "bookings_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "bookings_modify",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "bookings_cancel",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "bookings_approve_changes",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "ticketing_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "ticketing_issue",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "ticketing_void",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "ticketing_reissue",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "ticketing_cancel",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "payments_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "payments_link_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "payments_record",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "payments_refund_request",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "payments_refund_approve",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "payments_supplier_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "finance_view_dashboard",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "finance_revenue_reports",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "finance_gross_profit",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "finance_export_reports",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "finance_manage_chargebacks",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "qa_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "qa_checklist_complete",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "qa_notes_edit",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "sla_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "sla_override",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "sla_reports_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "marketing_view_dashboard",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "marketing_campaign_manage",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "marketing_utm_builder",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "marketing_export",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "automation_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "automation_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "automation_toggle",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "automation_routing_config",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_create",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_edit",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_disable",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_delete",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_reset_password",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_assign_roles",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "users_configure_permissions",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "system_api_config",
+        "enabled": false,
+        "scope": "all"
+      },
+      {
+        "key": "system_notification_rules",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "system_sla_rules",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "system_ivr_config",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "system_suppliers_manage",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "audit_view",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "audit_export",
+        "enabled": true,
+        "scope": "all"
+      },
+      {
+        "key": "audit_archive",
+        "enabled": false,
+        "scope": "all"
+      },
+      {
+        "key": "audit_sensitive_view",
+        "enabled": true,
+        "scope": "all"
+      }
+    ]
+  },
+  {
+    "id": "sales_executive",
+    "name": "Sales Agent",
+    "description": "Frontline sales representative creating quotes, managing assigned leads, and handling softphone calls.",
+    "isCustom": false,
+    "userCount": 0,
+    "permissions": [
+      {
+        "key": "leads_view",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "leads_create",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "leads_edit",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "leads_assign",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "leads_reassign",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "leads_delete",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "leads_export",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "leads_merge",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "customers_view",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "customers_create",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "customers_edit",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "customers_delete",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "customers_docs_view",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "customers_docs_upload",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "calls_make",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "calls_receive",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "calls_transfer",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "calls_recording_view",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "calls_recording_download",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "calls_recording_delete",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "calls_schedule_callback",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "quotes_view",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "quotes_create",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "quotes_edit",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "quotes_discount_request",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "quotes_discount_approve",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "quotes_delete",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "bookings_view",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "bookings_create",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "bookings_modify",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "bookings_cancel",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "bookings_approve_changes",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "ticketing_view",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "ticketing_issue",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "ticketing_void",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "ticketing_reissue",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "ticketing_cancel",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "payments_view",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "payments_link_create",
+        "enabled": true,
+        "scope": "own"
+      },
+      {
+        "key": "payments_record",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "payments_refund_request",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "payments_refund_approve",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "payments_supplier_view",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "finance_view_dashboard",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "finance_revenue_reports",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "finance_gross_profit",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "finance_export_reports",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "finance_manage_chargebacks",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "qa_view",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "qa_checklist_complete",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "qa_notes_edit",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "sla_view",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "sla_override",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "sla_reports_view",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "marketing_view_dashboard",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "marketing_campaign_manage",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "marketing_utm_builder",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "marketing_export",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "automation_view",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "automation_create",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "automation_toggle",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "automation_routing_config",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "users_view",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "users_create",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "users_edit",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "users_disable",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "users_delete",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "users_reset_password",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "users_assign_roles",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "users_configure_permissions",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "system_api_config",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "system_notification_rules",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "system_sla_rules",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "system_ivr_config",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "system_suppliers_manage",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "audit_view",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "audit_export",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "audit_archive",
+        "enabled": false,
+        "scope": "own"
+      },
+      {
+        "key": "audit_sensitive_view",
+        "enabled": false,
+        "scope": "own"
+      }
+    ]
+  }
+]

@@ -1,21 +1,13 @@
-/**
- * init-db.js
- * Runs before server startup on Railway/Production to ensure PostgreSQL tables
- * are created and synchronized safely without blocking server boot on network delay.
- */
-
-const { execSync } = require('child_process');
-
-console.log('🚀 [Startup] Initializing WowMyFlight backend...');
-
-if (process.env.DATABASE_URL) {
-  try {
-    console.log('🔄 [PostgreSQL] Detected DATABASE_URL. Synchronizing database tables with Prisma...');
-    execSync('npx prisma db push --skip-generate', { stdio: 'inherit' });
-    console.log('✅ [PostgreSQL] Database tables synchronized successfully!');
-  } catch (err) {
-    console.warn('⚠️ [PostgreSQL] Could not push schema (server will still boot in resilient mode):', err.message);
-  }
-} else {
-  console.log('ℹ️ [PostgreSQL] DATABASE_URL not set in this environment. Running with in-memory store.');
+﻿require('dotenv').config();
+const { execFileSync } = require('child_process');
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL is required. Refusing to start without persistent storage.');
+  process.exit(1);
+}
+try {
+  execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'db', 'push', '--skip-generate'], { stdio: 'inherit', timeout: 120000 });
+  console.log('Database schema is ready.');
+} catch {
+  console.error('Database initialization failed. Fix the connection or schema before starting the backend.');
+  process.exit(1);
 }

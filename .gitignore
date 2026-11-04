@@ -1,4 +1,12 @@
 .env
+.env.*
+!.env.example
+*.dump
+*.sql
+*.log
+db-backups.local/
+store/*.json
+store/*.txt
 node_modules/
 store/leads_data.json
 
