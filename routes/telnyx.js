@@ -246,6 +246,144 @@ router.post('/calls/action', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 4b. SUPERVISOR LIVE CALL MONITORING (Silent Listen, Whisper, Barge)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/telnyx/calls/active - List all currently ongoing calls
+router.get('/calls/active', async (req, res) => {
+  try {
+    const memActive = callStore.getAllActiveCalls();
+    res.json({
+      success: true,
+      count: memActive.length,
+      data: memActive,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/telnyx/calls/monitor/start - Supervisor joins call in Listen, Whisper, or Barge mode
+router.post('/calls/monitor/start', async (req, res) => {
+  try {
+    const { callControlId, supervisorId, supervisorName, mode = 'listen', agentId, agentName } = req.body;
+
+    if (!callControlId) {
+      return res.status(400).json({ success: false, error: 'callControlId is required' });
+    }
+
+    const session = callStore.addMonitor(callControlId, {
+      supervisorId: supervisorId || 'sup-admin',
+      supervisorName: supervisorName || 'Supervisor (Team Leader)',
+      mode,
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('telnyx:supervisor_joined', {
+        callControlId,
+        supervisorId,
+        supervisorName,
+        mode,
+        agentId,
+        agentName,
+        joinedAt: session.joinedAt,
+      });
+
+      if (agentId) {
+        io.to(`agent:${agentId}`).emit('telnyx:supervisor_status', {
+          callControlId,
+          isMonitored: true,
+          mode,
+          supervisorName,
+        });
+      }
+    }
+
+    console.log(`[Supervisor Monitor] ${supervisorName} joined ${callControlId} in "${mode.toUpperCase()}" mode.`);
+
+    res.json({
+      success: true,
+      data: {
+        session,
+        callControlId,
+        mode,
+        monitors: callStore.getMonitorsForCall(callControlId),
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/telnyx/calls/monitor/whisper-cue - Send quick coaching tip to agent during live call
+router.post('/calls/monitor/whisper-cue', async (req, res) => {
+  try {
+    const { callControlId, agentId, tipText, supervisorName = 'Team Leader' } = req.body;
+
+    if (!tipText) {
+      return res.status(400).json({ success: false, error: 'tipText is required' });
+    }
+
+    const io = req.app.get('io');
+    const cuePayload = {
+      callControlId,
+      agentId,
+      tipText,
+      supervisorName,
+      timestamp: new Date().toLocaleTimeString(),
+    };
+
+    if (io) {
+      io.emit('telnyx:whisper_cue', cuePayload);
+      if (agentId) {
+        io.to(`agent:${agentId}`).emit('telnyx:whisper_cue', cuePayload);
+      }
+    }
+
+    console.log(`[Whisper Cue] From ${supervisorName} to agent ${agentId}: "${tipText}"`);
+    res.json({ success: true, data: cuePayload });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/telnyx/calls/monitor/action - Switch mode (listen/whisper/barge) or leave
+router.post('/calls/monitor/action', async (req, res) => {
+  try {
+    const { callControlId, supervisorId, action, mode } = req.body;
+
+    if (!callControlId || !supervisorId) {
+      return res.status(400).json({ success: false, error: 'callControlId and supervisorId are required' });
+    }
+
+    const io = req.app.get('io');
+
+    if (action === 'leave') {
+      callStore.removeMonitor(callControlId, supervisorId);
+      if (io) {
+        io.emit('telnyx:supervisor_left', { callControlId, supervisorId });
+      }
+      console.log(`[Supervisor Monitor] Supervisor ${supervisorId} left monitoring on ${callControlId}`);
+      return res.json({ success: true, message: 'Monitoring session ended safely' });
+    }
+
+    if (action === 'switch_mode' && mode) {
+      const updated = callStore.updateMonitorMode(callControlId, supervisorId, mode);
+      if (io) {
+        io.emit('telnyx:supervisor_mode_changed', { callControlId, supervisorId, mode });
+      }
+      console.log(`[Supervisor Monitor] Supervisor ${supervisorId} switched mode to "${mode}"`);
+      return res.json({ success: true, data: updated });
+    }
+
+    res.status(400).json({ success: false, error: `Invalid action: ${action}` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 5. POST /api/telnyx/calls/disposition
 //    Agent saves a mandatory call outcome after a call ends.
 // ─────────────────────────────────────────────────────────────────────────────

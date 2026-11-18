@@ -244,6 +244,83 @@ function deleteCallLog(idOrControlId) {
   return true;
 }
 
+// Active supervisor monitors: callControlId -> Map(supervisorId, { supervisorId, supervisorName, mode, joinedAt })
+const activeMonitors = new Map();
+
+/**
+ * Get all currently active calls
+ */
+function getAllActiveCalls() {
+  const activeList = Array.from(activeCalls.values());
+  if (activeList.length > 0) {
+    return activeList.map(c => ({
+      ...c,
+      monitorsCount: activeMonitors.get(c.callControlId)?.size || 0,
+    }));
+  }
+  // Fallback: check recent answered/initiated callLogs that have not ended
+  const recent = callLogs
+    .filter(l => (l.status === 'answered' || l.status === 'initiated') && !l.endedAt)
+    .slice(-10);
+  return recent.map(c => ({
+    ...c,
+    monitorsCount: activeMonitors.get(c.callControlId)?.size || 0,
+  }));
+}
+
+/**
+ * Register a supervisor monitoring session on a call
+ */
+function addMonitor(callControlId, { supervisorId, supervisorName, mode = 'listen' }) {
+  if (!activeMonitors.has(callControlId)) {
+    activeMonitors.set(callControlId, new Map());
+  }
+  const session = {
+    supervisorId,
+    supervisorName,
+    mode,
+    joinedAt: new Date().toISOString(),
+  };
+  activeMonitors.get(callControlId).set(supervisorId, session);
+  return session;
+}
+
+/**
+ * Update supervisor monitor mode (listen | whisper | barge)
+ */
+function updateMonitorMode(callControlId, supervisorId, mode) {
+  const monitors = activeMonitors.get(callControlId);
+  if (monitors && monitors.has(supervisorId)) {
+    const session = monitors.get(supervisorId);
+    session.mode = mode;
+    return session;
+  }
+  return null;
+}
+
+/**
+ * Remove a supervisor monitor session
+ */
+function removeMonitor(callControlId, supervisorId) {
+  const monitors = activeMonitors.get(callControlId);
+  if (monitors) {
+    monitors.delete(supervisorId);
+    if (monitors.size === 0) {
+      activeMonitors.delete(callControlId);
+    }
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Get active monitors on a call
+ */
+function getMonitorsForCall(callControlId) {
+  const monitors = activeMonitors.get(callControlId);
+  return monitors ? Array.from(monitors.values()) : [];
+}
+
 module.exports = {
   createCallLog,
   updateCallLog,
@@ -254,6 +331,12 @@ module.exports = {
   getCallLogs,
   getCallByControlId,
   getActiveCall,
+  getAllActiveCalls,
+  addMonitor,
+  updateMonitorMode,
+  removeMonitor,
+  getMonitorsForCall,
   deleteCallLog,
   activeCalls,
+  activeMonitors,
 };
