@@ -894,7 +894,17 @@ router.put('/:id', async (req, res) => {
         const prismaData = {};
         for (const key of allowedPrismaFields) {
           if (updates[key] !== undefined) {
-            prismaData[key] = updates[key];
+            let val = updates[key];
+            if (key === 'budget') {
+              val = val === '' || val === null ? null : parseFloat(val);
+              if (isNaN(val)) val = null;
+            } else if (key === 'adults' || key === 'children' || key === 'infants' || key === 'passengers') {
+              val = val === '' || val === null ? 0 : parseInt(val, 10);
+              if (isNaN(val)) val = key === 'adults' || key === 'passengers' ? 1 : 0;
+            } else if (key === 'returnDate' || key === 'travelDate') {
+              val = val === '' ? null : val;
+            }
+            prismaData[key] = val;
           }
         }
         prismaData.updatedAt = new Date();
