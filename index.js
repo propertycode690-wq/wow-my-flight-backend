@@ -488,6 +488,7 @@ app.use('/api/auth', usersRoutes);
 app.use('/api/consultations', consultationsRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/email', require('./routes/email'));
 
 // Phase 3 — Management API Routes (Exact match to sidebar menu names)
 app.use('/api/team-leader-dashboard', teamLeaderDashboardRoutes);
