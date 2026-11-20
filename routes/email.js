@@ -2,40 +2,54 @@ const express = require('express');
 const router = express.Router();
 const nodemailer = require('nodemailer');
 
-// Singleton Nodemailer transporter
-let transporter = null;
+// Cache transporters per sender email to reuse SSL connections efficiently
+const transporterPool = new Map();
 
-function getTransporter() {
-  if (!transporter) {
-    const host = process.env.SMTP_HOST || 'fusion.mxrouting.net';
-    const port = parseInt(process.env.SMTP_PORT || '465', 10);
-    const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-    const user = process.env.SMTP_USER || 'bookings@wowmyflight.com';
-    const pass = process.env.SMTP_PASS || 'Wowmyflight@#123';
+function getTransporterForSender(senderEmail) {
+  const host = process.env.SMTP_HOST || 'fusion.mxrouting.net';
+  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  const secure = process.env.SMTP_SECURE === 'true' || port === 465;
 
-    transporter = nodemailer.createTransport({
+  // Use senderEmail or fallback to default bookings mailbox
+  const emailUser = (senderEmail && senderEmail.includes('@wowmyflight.com'))
+    ? senderEmail.trim().toLowerCase()
+    : (process.env.SMTP_USER || 'bookings@wowmyflight.com');
+
+  const emailPass = process.env.SMTP_PASS || 'Wowmyflight@#123';
+
+  if (!transporterPool.has(emailUser)) {
+    const transporter = nodemailer.createTransport({
       host,
       port,
       secure,
-      auth: { user, pass },
+      auth: {
+        user: emailUser,
+        pass: emailPass
+      },
       tls: {
         rejectUnauthorized: false
       }
     });
+    transporterPool.set(emailUser, transporter);
   }
-  return transporter;
+
+  return {
+    transporter: transporterPool.get(emailUser),
+    fromEmail: emailUser
+  };
 }
 
-// 1. Verify SMTP connection
+// 1. Verify SMTP connection for default or specific mailbox
 router.get('/verify', async (req, res) => {
   try {
-    const mailer = getTransporter();
-    await mailer.verify();
+    const targetEmail = req.query.email || process.env.SMTP_USER || 'bookings@wowmyflight.com';
+    const { transporter, fromEmail } = getTransporterForSender(targetEmail);
+    await transporter.verify();
     return res.json({
       success: true,
-      message: 'SMTP connection verified successfully!',
+      message: `SMTP connection verified successfully for ${fromEmail}`,
       host: process.env.SMTP_HOST || 'fusion.mxrouting.net',
-      sender: process.env.SMTP_USER || 'bookings@wowmyflight.com'
+      sender: fromEmail
     });
   } catch (err) {
     console.error('❌ [SMTP] Verify error:', err.message);
@@ -43,10 +57,10 @@ router.get('/verify', async (req, res) => {
   }
 });
 
-// 2. Send email endpoint
+// 2. Dynamic Send Email Endpoint — Sends from the currently logged-in Agent or selected Dept
 router.post('/send', async (req, res) => {
   try {
-    const { to, subject, text, html, leadId } = req.body;
+    const { to, subject, text, html, senderEmail, senderName, leadId } = req.body;
 
     if (!to || !subject || (!text && !html)) {
       return res.status(400).json({
@@ -55,25 +69,29 @@ router.post('/send', async (req, res) => {
       });
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Wow My Flight';
-    const fromEmail = process.env.SMTP_FROM_EMAIL || 'bookings@wowmyflight.com';
-    const fromAddress = `"${fromName}" <${fromEmail}>`;
+    // Determine sender identity:
+    // If agent is logged in (e.g. req.user.email), use agent's own mailbox (e.g. issac@wowmyflight.com)
+    const effectiveSenderEmail = senderEmail || req.user?.email || 'bookings@wowmyflight.com';
+    const effectiveSenderName = senderName || req.user?.name || 'Wow My Flight';
 
-    const mailer = getTransporter();
+    const { transporter, fromEmail } = getTransporterForSender(effectiveSenderEmail);
+    const fromHeader = `"${effectiveSenderName}" <${fromEmail}>`;
 
-    const info = await mailer.sendMail({
-      from: fromAddress,
+    const info = await transporter.sendMail({
+      from: fromHeader,
       to,
+      replyTo: fromHeader,
       subject,
       text: text || undefined,
       html: html || undefined
     });
 
-    console.log(`✅ [Email Sent] ID: ${info.messageId} to ${to}`);
+    console.log(`✅ [Email Sent] From: ${fromHeader} | To: ${to} | Subject: ${subject} | ID: ${info.messageId}`);
 
     return res.json({
       success: true,
-      message: 'Email dispatched successfully via MXroute SMTP',
+      message: `Email dispatched successfully from ${fromEmail}`,
+      from: fromHeader,
       messageId: info.messageId,
       accepted: info.accepted
     });
